@@ -58,6 +58,7 @@ img {
 }
 .domainTd {
   user-select: text;
+  cursor: pointer;
 }
 .addrTd {
   font-family: monospace;
@@ -65,6 +66,7 @@ img {
   color: #000080;
   padding-right: 0;
   user-select: text;
+  cursor: pointer;
 }
 .cacheTd {
   border-left-width: 0;
@@ -135,20 +137,88 @@ img {
   display: none;
 }
 
+/* Utility buttons in the popup row */
 .pbtn {
   color: #fafafa;
   background-color: #333;
   text-decoration: none;
   font-family: monospace;
-  padding: 0px 3px;
-  margin-left: 1px;
+  font-size: 11px;
+  line-height: 14px;
+  padding: 1px 4px;
+  margin-left: 2px;
   font-weight: normal;
+  border: 1px solid #555;
+  border-radius: 3px;
+  cursor: pointer;
+  display: inline-block;
+  box-sizing: border-box;
+  vertical-align: middle;
 }
 .pbtn:hover {
-  opacity: 0.75;
+  opacity: 0.85;
+  background-color: #4a4a4a;
 }
 .pbtn:active {
   opacity: 0.5;
+}
+
+/* Footer toolbar */
+#footer_bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+  padding: 4px 2px 2px 2px;
+  border-top: 1px solid #e0e0e0;
+  font-family: sans-serif;
+  font-size: 11px;
+}
+#copy_all_btn {
+  background: #f4f4f4;
+  border: 1px solid #bbb;
+  border-radius: 3px;
+  padding: 2px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #333;
+}
+#copy_all_btn:hover {
+  background: #e8e8e8;
+}
+#copy_all_btn:active {
+  background: #d8d8d8;
+}
+#footer_options_link a {
+  color: #666;
+  text-decoration: none;
+}
+#footer_options_link a:hover {
+  text-decoration: underline;
+}
+
+/* Copy Toast feedback */
+#copy_toast {
+  position: fixed;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%) translateY(25px);
+  background: rgba(0, 0, 0, 0.88);
+  color: #fff;
+  padding: 5px 12px;
+  border-radius: 4px;
+  font-family: sans-serif;
+  font-size: 11px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 1000;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+}
+#copy_toast.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 #lookup_bubble {
@@ -220,8 +290,33 @@ img {
     display: initial;
   }
   .pbtn {
-    background-color: #aaa;
-    color: #000;
+    background-color: #444;
+    color: #eee;
+    border-color: #666;
+  }
+  .pbtn:hover {
+    background-color: #555;
+  }
+  #footer_bar {
+    border-top-color: #444;
+  }
+  #copy_all_btn {
+    background: #333;
+    border-color: #555;
+    color: #ddd;
+  }
+  #copy_all_btn:hover {
+    background: #444;
+  }
+  #copy_all_btn:active {
+    background: #222;
+  }
+  #footer_options_link a {
+    color: #aaa;
+  }
+  #copy_toast {
+    background: rgba(240, 240, 240, 0.95);
+    color: #111;
   }
   #lookup_bubble {
     background: #666;
@@ -258,6 +353,10 @@ img {
   <div id="spill_count_container">
   &#x22ee; <span id="spill_count">0</span> requests omitted
   </div>
+  <div id="footer_bar">
+    <button id="copy_all_btn" type="button" title="Copy all unique IP addresses">📋 Copy All IPs</button>
+    <div id="footer_options_link"><a href="options.html" target="_blank">⚙ Options</a></div>
+  </div>
   <div id="mobile_footer">
     <div id="options_link"><a href="options.html">Options</a></div>
     <img id="pattern_icon_lightfg">
@@ -266,6 +365,7 @@ img {
   <div id="lookup_bubble">
     <a id="lookup_link" href="#" target="_blank">Lookup on lookup.example.com</a>
   </div>
+  <div id="copy_toast">Copied to clipboard!</div>
 </div>
 </body>
 </html>

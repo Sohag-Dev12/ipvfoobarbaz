@@ -60,6 +60,91 @@ function addBtn(url, letter, title, utilsTd){
   utilsTd.appendChild(btn);
 }
 
+// Clipboard copy helpers
+let toastTimer = null;
+function showToast(msg) {
+  const toast = document.getElementById("copy_toast");
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    toast.classList.remove("show");
+  }, 1400);
+}
+
+function copyToClipboard(text, message = "Copied to clipboard!") {
+  if (!text || text === "(no address)") return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      showToast(message);
+    }).catch(() => {
+      fallbackCopy(text, message);
+    });
+  } else {
+    fallbackCopy(text, message);
+  }
+}
+
+function fallbackCopy(text, message) {
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try {
+    document.execCommand("copy");
+    showToast(message);
+  } catch (err) {
+    console.error("Copy failed", err);
+  }
+  document.body.removeChild(ta);
+}
+
+function addCopyBtn(textToCopy, letter, title, utilsTd) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = letter;
+  btn.className = "pbtn";
+  btn.title = title;
+  btn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    copyToClipboard(textToCopy, `Copied IP: ${textToCopy}`);
+    btn.textContent = "✓";
+    btn.style.color = "#00d26a";
+    setTimeout(() => {
+      btn.textContent = letter;
+      btn.style.color = "";
+    }, 1200);
+  };
+  utilsTd.appendChild(btn);
+}
+
+function copyAllIPs() {
+  const ips = new Set();
+  const rows = table?.querySelectorAll("tr") || [];
+  for (const tr of rows) {
+    const addrCell = tr.querySelector(".addrTd");
+    if (addrCell) {
+      const selectMe = addrCell.querySelector(".selectMe");
+      const ip = (selectMe ? selectMe.textContent : addrCell.textContent) || "";
+      const cleaned = ip.split("→")[0].trim();
+      if (cleaned && cleaned !== "(no address)" && cleaned !== "null::/96") {
+        ips.add(cleaned);
+      }
+    }
+  }
+  if (ips.size === 0) {
+    showToast("No IP addresses found");
+    return;
+  }
+  const text = Array.from(ips).join("\n");
+  copyToClipboard(text, `Copied ${ips.size} IP${ips.size > 1 ? "s" : ""}!`);
+}
+
 
 
 const tabId = window.location.hash.substr(1);
@@ -91,6 +176,14 @@ window.onload = async function() {
       ["cached.example.com", "2001:db8::f00", "6", DFLAG_H3 | AFLAG_CACHE],
     ];
     pushAll(TEST_TUPLES, "646", REGULAR_COLOR, 0, true);
+  }
+
+  const copyAllBtn = document.getElementById("copy_all_btn");
+  if (copyAllBtn) {
+    copyAllBtn.onclick = (e) => {
+      e.preventDefault();
+      copyAllIPs();
+    };
   }
 };
 
@@ -381,6 +474,11 @@ function makeRow(isFirst, tuple) {
   domainTd.className = "domainTd";
   domainTd.onclick = handleClick;
   domainTd.oncontextmenu = handleContextMenu;
+  domainTd.title = "Click to select, double-click to copy: " + domain;
+  domainTd.ondblclick = (e) => {
+    e.preventDefault();
+    copyToClipboard(domain, `Copied: ${domain}`);
+  };
 
   // Build the "Address" column.
   const addrTd = document.createElement("td");
@@ -400,6 +498,11 @@ function makeRow(isFirst, tuple) {
 
   addrTd.onclick = handleClick;
   addrTd.oncontextmenu = handleContextMenu;
+  addrTd.title = "Click to select, double-click to copy: " + addr;
+  addrTd.ondblclick = (e) => {
+    e.preventDefault();
+    copyToClipboard(addr, `Copied: ${addr}`);
+  };
 
   let hostDiv = document.createElement("div");
   hostDiv.style.fontSize = "small";
@@ -508,11 +611,15 @@ function makeRow(isFirst, tuple) {
 
   const utilsTd = document.createElement("td");
 
-  // Perhaps these buttons should be icons? Or something else?
+  // Copy IP Button
+  addCopyBtn(addr, "C", "Copy IP (" + addr + ")", utilsTd);
+
+  // Quick lookup buttons
   addBtn(getWhois(domain), "W", "WHOIS", utilsTd);
   addBtn("https://search.arin.net/rdap/?query=" + encodeURIComponent(addr), "A", "ARIN", utilsTd);
   addBtn("https://apps.db.ripe.net/db-web-ui/query?searchtext=" + encodeURIComponent(addr), "R", "RIPE", utilsTd);
   addBtn("https://ipinfo.io/" + addr, "I", "IPInfo", utilsTd);
+  addBtn("https://bgp.he.net/ip/" + encodeURIComponent(addr), "H", "Hurricane Electric (BGP)", utilsTd);
   addBtn("https://bgp.tools/prefix/" + addr, "B", "BGP.Tools", utilsTd);
 
   // Build the (possibly invisible) "WebSocket/Cached" column.
