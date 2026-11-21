@@ -107,7 +107,7 @@ function addCopyBtn(textToCopy, letter, title, utilsTd) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.textContent = letter;
-  btn.className = "pbtn";
+  btn.className = "pbtn btn-copy";
   btn.title = title;
   btn.onclick = (e) => {
     e.preventDefault();
@@ -123,18 +123,83 @@ function addCopyBtn(textToCopy, letter, title, utilsTd) {
   utilsTd.appendChild(btn);
 }
 
+let currentSearchQuery = "";
+let currentFilterType = "all";
+
+function updateStats() {
+  const rows = table ? table.querySelectorAll("tr") : [];
+  let v4 = 0;
+  let v6 = 0;
+  const uniqueDomains = new Set();
+
+  for (const tr of rows) {
+    if (tr._domain) {
+      uniqueDomains.add(tr._domain);
+      if (tr._version === "4") v4++;
+      else if (tr._version === "6") v6++;
+    }
+  }
+  const total = uniqueDomains.size;
+
+  const statTotal = document.getElementById("stat_total");
+  const statV4 = document.getElementById("stat_v4");
+  const statV6 = document.getElementById("stat_v6");
+
+  if (statTotal) statTotal.textContent = `${total} domain${total === 1 ? "" : "s"}`;
+  if (statV4) statV4.textContent = `${v4} v4`;
+  if (statV6) statV6.textContent = `${v6} v6`;
+}
+
+function applyFilter() {
+  const rows = table ? table.querySelectorAll("tr") : [];
+  let visibleCount = 0;
+  const q = currentSearchQuery.toLowerCase();
+
+  for (const tr of rows) {
+    let matchFilter = true;
+    if (currentFilterType === "4" && tr._version !== "4") {
+      matchFilter = false;
+    } else if (currentFilterType === "6" && tr._version !== "6") {
+      matchFilter = false;
+    }
+
+    let matchSearch = true;
+    if (q) {
+      const d = (tr._domain || "").toLowerCase();
+      const a = (tr._addr || "").toLowerCase();
+      const h = (tr._hostname || "").toLowerCase();
+      const asn = (tr._asn || "").toLowerCase();
+      if (!d.includes(q) && !a.includes(q) && !h.includes(q) && !asn.includes(q)) {
+        matchSearch = false;
+      }
+    }
+
+    if (matchFilter && matchSearch) {
+      tr.style.display = "";
+      visibleCount++;
+    } else {
+      tr.style.display = "none";
+    }
+  }
+
+  const noResults = document.getElementById("no_results");
+  if (noResults) {
+    if (visibleCount === 0 && rows.length > 0) {
+      noResults.style.display = "block";
+    } else {
+      noResults.style.display = "none";
+    }
+  }
+}
+
 function copyAllIPs() {
   const ips = new Set();
   const rows = table?.querySelectorAll("tr") || [];
   for (const tr of rows) {
-    const addrCell = tr.querySelector(".addrTd");
-    if (addrCell) {
-      const selectMe = addrCell.querySelector(".selectMe");
-      const ip = (selectMe ? selectMe.textContent : addrCell.textContent) || "";
-      const cleaned = ip.split("→")[0].trim();
-      if (cleaned && cleaned !== "(no address)" && cleaned !== "null::/96") {
-        ips.add(cleaned);
-      }
+    if (tr.style.display === "none") continue;
+    const addr = tr._addr;
+    if (addr && addr !== "(no address)" && addr !== "null::/96") {
+      ips.add(addr);
     }
   }
   if (ips.size === 0) {
@@ -145,7 +210,33 @@ function copyAllIPs() {
   copyToClipboard(text, `Copied ${ips.size} IP${ips.size > 1 ? "s" : ""}!`);
 }
 
+function copyTableAsTSV() {
+  const rows = table ? table.querySelectorAll("tr") : [];
+  if (!rows || rows.length === 0) {
+    showToast("No data to copy");
+    return;
+  }
 
+  const lines = ["Domain\tAddress\tVersion\tHostname\tASN"];
+  let count = 0;
+  for (const tr of rows) {
+    if (tr.style.display === "none") continue;
+    const domain = tr._domain || "";
+    const addr = tr._addr || "";
+    const version = tr._version ? `IPv${tr._version}` : "";
+    const hostname = tr._hostname || "";
+    const asn = tr._asn || "";
+    lines.push(`${domain}\t${addr}\t${version}\t${hostname}\t${asn}`);
+    count++;
+  }
+
+  if (count === 0) {
+    showToast("No visible rows to copy");
+    return;
+  }
+
+  copyToClipboard(lines.join("\n"), `Copied ${count} rows (TSV) to clipboard!`);
+}
 
 const tabId = window.location.hash.substr(1);
 
@@ -155,6 +246,58 @@ let gSawHttpGt1 = false;
 window.onload = async function() {
   table = document.getElementById("addr_table");
   table.onmousedown = handleMouseDown;
+
+  // Search & Filter input
+  const searchInput = document.getElementById("search_input");
+  const searchClear = document.getElementById("search_clear");
+  if (searchInput) {
+    searchInput.addEventListener("input", () => {
+      currentSearchQuery = searchInput.value.trim().toLowerCase();
+      if (searchClear) {
+        searchClear.style.display = currentSearchQuery ? "block" : "none";
+      }
+      applyFilter();
+    });
+  }
+  if (searchClear) {
+    searchClear.addEventListener("click", () => {
+      if (searchInput) {
+        searchInput.value = "";
+        currentSearchQuery = "";
+        searchClear.style.display = "none";
+        searchInput.focus();
+        applyFilter();
+      }
+    });
+  }
+
+  // Filter Pills (All / IPv4 / IPv6)
+  const pills = document.querySelectorAll(".filter-pill");
+  pills.forEach((pill) => {
+    pill.addEventListener("click", () => {
+      pills.forEach((p) => p.classList.remove("active"));
+      pill.classList.add("active");
+      currentFilterType = pill.getAttribute("data-filter") || "all";
+      applyFilter();
+    });
+  });
+
+  // Footer Toolbar buttons
+  const copyAllBtn = document.getElementById("copy_all_btn");
+  if (copyAllBtn) {
+    copyAllBtn.onclick = (e) => {
+      e.preventDefault();
+      copyAllIPs();
+    };
+  }
+
+  const copyTableBtn = document.getElementById("copy_table_btn");
+  if (copyTableBtn) {
+    copyTableBtn.onclick = (e) => {
+      e.preventDefault();
+      copyTableAsTSV();
+    };
+  }
 
   if (IS_MOBILE) {
     document.getElementById("mobile_footer").style.display = "flex";
@@ -176,14 +319,6 @@ window.onload = async function() {
       ["cached.example.com", "2001:db8::f00", "6", DFLAG_H3 | AFLAG_CACHE],
     ];
     pushAll(TEST_TUPLES, "646", REGULAR_COLOR, 0, true);
-  }
-
-  const copyAllBtn = document.getElementById("copy_all_btn");
-  if (copyAllBtn) {
-    copyAllBtn.onclick = (e) => {
-      e.preventDefault();
-      copyAllIPs();
-    };
   }
 };
 
@@ -280,6 +415,8 @@ function pushAll(tuples, pattern, color, spillCount, sawHttpGt1) {
   }
   pushPattern(pattern, color);
   pushSpillCount(spillCount);
+  updateStats();
+  applyFilter();
 }
 
 // Insert or update a single table row.
@@ -291,6 +428,8 @@ function pushOne(tuple) {
     if (tr._domain == domain) {
       // Found an exact match.  Update the row.
       minimalCopy(makeRow(isFirst, tuple), tr);
+      updateStats();
+      applyFilter();
       return;
     }
     if (isFirst) {
@@ -302,6 +441,8 @@ function pushOne(tuple) {
   }
   // No exact match.  Insert the row in alphabetical order.
   table.insertBefore(makeRow(false, tuple), insertHere);
+  updateStats();
+  applyFilter();
   if (IS_MOBILE) {
     zoomHack();
   } else {
@@ -384,6 +525,11 @@ function scrollbarHack() {
 // Copy the contents of src into dst, making minimal changes.
 function minimalCopy(src, dst) {
   dst.className = src.className;
+  dst._domain = src._domain;
+  dst._addr = src._addr;
+  dst._version = src._version;
+  dst._hostname = src._hostname;
+  dst._asn = src._asn;
   for (let s = src.firstChild, d = dst.firstChild, sNext, dNext;
        s && d;
        s = sNext, d = dNext) {
@@ -461,6 +607,11 @@ function makeRow(isFirst, tuple) {
   if (isFirst) {
     tr.className = "mainRow";
   }
+  tr._domain = domain;
+  tr._addr = addr;
+  tr._version = version;
+  tr._hostname = "";
+  tr._asn = "";
 
   // Build the HTTP icon for the "zeroth" pseudo-column.
   const httpImg = makeHttpImg(flags);
@@ -477,7 +628,7 @@ function makeRow(isFirst, tuple) {
   domainTd.title = "Click to select, double-click to copy: " + domain;
   domainTd.ondblclick = (e) => {
     e.preventDefault();
-    copyToClipboard(domain, `Copied: ${domain}`);
+    copyToClipboard(domain, `Copied domain: ${domain}`);
   };
 
   // Build the "Address" column.
@@ -501,14 +652,14 @@ function makeRow(isFirst, tuple) {
   addrTd.title = "Click to select, double-click to copy: " + addr;
   addrTd.ondblclick = (e) => {
     e.preventDefault();
-    copyToClipboard(addr, `Copied: ${addr}`);
+    copyToClipboard(addr, `Copied IP: ${addr}`);
   };
 
-  let hostDiv = document.createElement("div");
-  hostDiv.style.fontSize = "small";
+  const metaContainer = document.createElement("div");
+  metaContainer.className = "meta-container";
 
-  let originDiv = document.createElement("div");
-  originDiv.style.fontSize = "small";
+  let hostDiv = null;
+  let originDiv = null;
 
   const hostSpan = document.createElement("span");
   const originSpan = document.createElement("span");
@@ -523,11 +674,28 @@ function makeRow(isFirst, tuple) {
     let dnsName = full_IPv6(addr).replaceAll(":", "").split("").reverse().join(".");
     ptr = dnsName + ".ip6.arpa";
     origin = dnsName + ".origin6.asn.cymru.com";
-  } else {
-    hostDiv = null;
   }
 
   if (ptr) {
+    hostDiv = document.createElement("div");
+    hostDiv.className = "meta-badge host-badge";
+    hostDiv.title = "Double-click to copy PTR hostname";
+    hostDiv.ondblclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const txt = hostSpan.textContent;
+      if (txt && txt !== "resolving...") {
+        copyToClipboard(txt, `Copied hostname: ${txt}`);
+      }
+    };
+    const hostIcon = document.createElement("span");
+    hostIcon.textContent = "🌐 ";
+    hostDiv.appendChild(hostIcon);
+    hostDiv.appendChild(hostSpan);
+    hostSpan.onclick = handleClick;
+    hostSpan.oncontextmenu = handleContextMenu;
+    metaContainer.appendChild(hostDiv);
+
     if (typeof window.dnsCache.hosts[ptr] === "undefined") {
       hostSpan.textContent = "resolving...";
       fetch("https://dns.google/resolve?name=" + ptr + "&type=PTR").then(res => res.json()).then(res => {
@@ -537,6 +705,7 @@ function makeRow(isFirst, tuple) {
           for (let answer of res.Answer){
             if (answer.data && answer.type === 12) { // PTR
               window.dnsCache.hosts[ptr] = answer.data.slice(0, -1);
+              tr._hostname = window.dnsCache.hosts[ptr];
               hostSpan.appendChild(snipDomainName(window.dnsCache.hosts[ptr]));
               hasFoundHostname = true;
               break;
@@ -546,22 +715,44 @@ function makeRow(isFirst, tuple) {
         if (!hasFoundHostname){
           window.dnsCache.hosts[ptr] = false;
           hostDiv.remove();
-          hostDiv = null;
+          if (!metaContainer.hasChildNodes()) metaContainer.remove();
         }
+      }).catch(() => {
+        if (hostDiv) hostDiv.remove();
+        if (!metaContainer.hasChildNodes()) metaContainer.remove();
       });
     } else {
       hostSpan.textContent = '';
       if (window.dnsCache.hosts[ptr]) {
+        tr._hostname = window.dnsCache.hosts[ptr];
         hostSpan.appendChild(snipDomainName(window.dnsCache.hosts[ptr]));
       } else {
-        hostDiv = null;
+        hostDiv.remove();
+        if (!metaContainer.hasChildNodes()) metaContainer.remove();
       }
     }
-  } else {
-    hostDiv = null;
   }
 
   if (origin) {
+    originDiv = document.createElement("div");
+    originDiv.className = "meta-badge asn-badge";
+    originDiv.title = "Double-click to copy ASN info";
+    originDiv.ondblclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const txt = originSpan.textContent;
+      if (txt && txt !== "fetching...") {
+        copyToClipboard(txt, `Copied ASN: ${txt}`);
+      }
+    };
+    const asnIcon = document.createElement("span");
+    asnIcon.textContent = "🏷️ ";
+    originDiv.appendChild(asnIcon);
+    originDiv.appendChild(originSpan);
+    originSpan.onclick = handleClick;
+    originSpan.oncontextmenu = handleContextMenu;
+    metaContainer.appendChild(originDiv);
+
     if (typeof window.dnsCache.asns[origin] === "undefined") {
       originSpan.textContent = "fetching...";
       fetch("https://dns.google/resolve?name=" + origin + "&type=TXT").then(res => res.json()).then(async res => {
@@ -571,45 +762,35 @@ function makeRow(isFirst, tuple) {
           if (res2.Answer && res2.Answer[0] && res2.Answer[0].data){
             let ans = res2.Answer[0].data.split(' |');
             window.dnsCache.asns[origin] = `AS${ans[0]} ${ans[4].split(' ')[1].split(',')[0]}, ${ans[1]}`;
+            tr._asn = window.dnsCache.asns[origin];
             originSpan.textContent = window.dnsCache.asns[origin];
           }
         } else {
           window.dnsCache.asns[origin] = false;
           originDiv.remove();
-          originDiv = null;
+          if (!metaContainer.hasChildNodes()) metaContainer.remove();
         }
+      }).catch(() => {
+        if (originDiv) originDiv.remove();
+        if (!metaContainer.hasChildNodes()) metaContainer.remove();
       });
     } else {
       if (window.dnsCache.asns[origin]) {
+        tr._asn = window.dnsCache.asns[origin];
         originSpan.textContent = window.dnsCache.asns[origin];
       } else {
-        originDiv = null;
+        originDiv.remove();
+        if (!metaContainer.hasChildNodes()) metaContainer.remove();
       }
     }
-  } else {
-    originDiv = null;
   }
 
-  if (hostDiv) {
-    hostSpan.onclick = handleClick;
-    hostSpan.oncontextmenu = handleContextMenu;
-
-    hostDiv.appendChild(document.createTextNode(" → "));
-    hostDiv.appendChild(hostSpan);
+  if (metaContainer.hasChildNodes()) {
+    addrTd.appendChild(metaContainer);
   }
-
-  if (originDiv) {
-    originSpan.onclick = handleClick;
-    originSpan.oncontextmenu = handleContextMenu;
-
-    originDiv.appendChild(document.createTextNode(" → "));
-    originDiv.appendChild(originSpan);
-  }
-
-  if (ptr && hostDiv) addrTd.appendChild(hostDiv);
-  if (origin && originDiv) addrTd.appendChild(originDiv);
 
   const utilsTd = document.createElement("td");
+  utilsTd.className = "utilsTd";
 
   // Copy IP Button
   addCopyBtn(addr, "C", "Copy IP (" + addr + ")", utilsTd);
@@ -623,11 +804,6 @@ function makeRow(isFirst, tuple) {
   addBtn("https://bgp.tools/prefix/" + addr, "B", "BGP.Tools", utilsTd);
 
   // Build the (possibly invisible) "WebSocket/Cached" column.
-  // We don't need to worry about drawing both, because a cached WebSocket
-  // would be nonsensical.
-  //
-  // Now that we also have a Service Worker icon, I just made it replace
-  // the Cached icon because I'm too lazy to align multiple columns properly.
   const cacheTd = document.createElement("td");
   cacheTd.className = `cacheTd${connectedClass}`;
   if (flags & DFLAG_WEBSOCKET) {
@@ -650,7 +826,6 @@ function makeRow(isFirst, tuple) {
     cacheTd.style.paddingLeft = '0';
   }
 
-  tr._domain = domain;
   tr.appendChild(domainTd);
   tr.appendChild(addrTd);
   tr.appendChild(cacheTd);
