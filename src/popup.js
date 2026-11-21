@@ -50,12 +50,12 @@ function getWhois(domain) {
   return "https://who.is/whois/" + encodeURIComponent(getDomain(domain));
 }
 
-function addBtn(url, letter, title, utilsTd){
+function addBtn(url, letter, title, utilsTd, extraClass = "") {
   const btn = document.createElement("a");
   btn.href = url;
   btn.textContent = letter;
   btn.target = "_blank";
-  btn.className = "pbtn";
+  btn.className = `pbtn ${extraClass}`.trim();
   btn.title = title;
   utilsTd.appendChild(btn);
 }
@@ -65,12 +65,12 @@ let toastTimer = null;
 function showToast(msg) {
   const toast = document.getElementById("copy_toast");
   if (!toast) return;
-  toast.textContent = msg;
+  toast.innerHTML = `<span style="font-size:12px;">✅</span> <span>${msg}</span>`;
   toast.classList.add("show");
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
     toast.classList.remove("show");
-  }, 1400);
+  }, 1500);
 }
 
 function copyToClipboard(text, message = "Copied to clipboard!") {
@@ -131,12 +131,14 @@ function updateStats() {
   let v4 = 0;
   let v6 = 0;
   const uniqueDomains = new Set();
+  let visibleCount = 0;
 
   for (const tr of rows) {
     if (tr._domain) {
       uniqueDomains.add(tr._domain);
       if (tr._version === "4") v4++;
       else if (tr._version === "6") v6++;
+      if (tr.style.display !== "none") visibleCount++;
     }
   }
   const total = uniqueDomains.size;
@@ -145,7 +147,13 @@ function updateStats() {
   const statV4 = document.getElementById("stat_v4");
   const statV6 = document.getElementById("stat_v6");
 
-  if (statTotal) statTotal.textContent = `${total} domain${total === 1 ? "" : "s"}`;
+  if (statTotal) {
+    if (currentSearchQuery || currentFilterType !== "all") {
+      statTotal.textContent = `${visibleCount}/${total} shown`;
+    } else {
+      statTotal.textContent = `${total} domain${total === 1 ? "" : "s"}`;
+    }
+  }
   if (statV4) statV4.textContent = `${v4} v4`;
   if (statV6) statV6.textContent = `${v6} v6`;
 }
@@ -190,6 +198,7 @@ function applyFilter() {
       noResults.style.display = "none";
     }
   }
+  updateStats();
 }
 
 function copyAllIPs() {
@@ -238,6 +247,33 @@ function copyTableAsTSV() {
   copyToClipboard(lines.join("\n"), `Copied ${count} rows (TSV) to clipboard!`);
 }
 
+function copyTableAsJSON() {
+  const rows = table ? table.querySelectorAll("tr") : [];
+  if (!rows || rows.length === 0) {
+    showToast("No data to copy");
+    return;
+  }
+
+  const data = [];
+  for (const tr of rows) {
+    if (tr.style.display === "none") continue;
+    data.push({
+      domain: tr._domain || "",
+      address: tr._addr || "",
+      version: tr._version ? `IPv${tr._version}` : "",
+      hostname: tr._hostname || "",
+      asn: tr._asn || ""
+    });
+  }
+
+  if (data.length === 0) {
+    showToast("No visible rows to copy");
+    return;
+  }
+
+  copyToClipboard(JSON.stringify(data, null, 2), `Copied ${data.length} items (JSON)!`);
+}
+
 const tabId = window.location.hash.substr(1);
 
 let table = null;
@@ -250,13 +286,23 @@ window.onload = async function() {
   // Search & Filter input
   const searchInput = document.getElementById("search_input");
   const searchClear = document.getElementById("search_clear");
+  const searchKbd = document.getElementById("search_kbd");
   if (searchInput) {
     searchInput.addEventListener("input", () => {
       currentSearchQuery = searchInput.value.trim().toLowerCase();
       if (searchClear) {
         searchClear.style.display = currentSearchQuery ? "block" : "none";
       }
+      if (searchKbd) {
+        searchKbd.style.display = currentSearchQuery ? "none" : "block";
+      }
       applyFilter();
+    });
+    searchInput.addEventListener("focus", () => {
+      if (searchKbd) searchKbd.style.display = "none";
+    });
+    searchInput.addEventListener("blur", () => {
+      if (searchKbd && !searchInput.value) searchKbd.style.display = "block";
     });
   }
   if (searchClear) {
@@ -265,11 +311,31 @@ window.onload = async function() {
         searchInput.value = "";
         currentSearchQuery = "";
         searchClear.style.display = "none";
+        if (searchKbd) searchKbd.style.display = "block";
         searchInput.focus();
         applyFilter();
       }
     });
   }
+
+  // Keyboard shortcut listener (/ or Ctrl+F to search, Escape to reset)
+  window.addEventListener("keydown", (e) => {
+    if ((e.key === "/" && document.activeElement !== searchInput) || (e.ctrlKey && e.key.toLowerCase() === "f")) {
+      e.preventDefault();
+      if (searchInput) {
+        searchInput.focus();
+        searchInput.select();
+      }
+    } else if (e.key === "Escape") {
+      if (searchInput && searchInput.value) {
+        searchInput.value = "";
+        currentSearchQuery = "";
+        if (searchClear) searchClear.style.display = "none";
+        if (searchKbd) searchKbd.style.display = "block";
+        applyFilter();
+      }
+    }
+  });
 
   // Filter Pills (All / IPv4 / IPv6)
   const pills = document.querySelectorAll(".filter-pill");
@@ -296,6 +362,14 @@ window.onload = async function() {
     copyTableBtn.onclick = (e) => {
       e.preventDefault();
       copyTableAsTSV();
+    };
+  }
+
+  const copyJsonBtn = document.getElementById("copy_json_btn");
+  if (copyJsonBtn) {
+    copyJsonBtn.onclick = (e) => {
+      e.preventDefault();
+      copyTableAsJSON();
     };
   }
 
@@ -796,12 +870,12 @@ function makeRow(isFirst, tuple) {
   addCopyBtn(addr, "C", "Copy IP (" + addr + ")", utilsTd);
 
   // Quick lookup buttons
-  addBtn(getWhois(domain), "W", "WHOIS", utilsTd);
-  addBtn("https://search.arin.net/rdap/?query=" + encodeURIComponent(addr), "A", "ARIN", utilsTd);
-  addBtn("https://apps.db.ripe.net/db-web-ui/query?searchtext=" + encodeURIComponent(addr), "R", "RIPE", utilsTd);
-  addBtn("https://ipinfo.io/" + addr, "I", "IPInfo", utilsTd);
-  addBtn("https://bgp.he.net/ip/" + encodeURIComponent(addr), "H", "Hurricane Electric (BGP)", utilsTd);
-  addBtn("https://bgp.tools/prefix/" + addr, "B", "BGP.Tools", utilsTd);
+  addBtn(getWhois(domain), "W", "WHOIS", utilsTd, "pbtn-w");
+  addBtn("https://search.arin.net/rdap/?query=" + encodeURIComponent(addr), "A", "ARIN", utilsTd, "pbtn-a");
+  addBtn("https://apps.db.ripe.net/db-web-ui/query?searchtext=" + encodeURIComponent(addr), "R", "RIPE", utilsTd, "pbtn-r");
+  addBtn("https://ipinfo.io/" + addr, "I", "IPInfo", utilsTd, "pbtn-i");
+  addBtn("https://bgp.he.net/ip/" + encodeURIComponent(addr), "H", "Hurricane Electric (BGP)", utilsTd, "pbtn-h");
+  addBtn("https://bgp.tools/prefix/" + addr, "B", "BGP.Tools", utilsTd, "pbtn-b");
 
   // Build the (possibly invisible) "WebSocket/Cached" column.
   const cacheTd = document.createElement("td");

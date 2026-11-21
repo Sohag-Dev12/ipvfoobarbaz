@@ -74,9 +74,15 @@ limitations under the License.
   .page-header {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding-bottom: 8px;
+    justify-content: space-between;
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--border-card);
+  }
+
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .header-icon {
@@ -89,6 +95,57 @@ limitations under the License.
     font-weight: 700;
     margin: 0;
     color: var(--text-primary);
+  }
+
+  .version-tag {
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 12px;
+    background-color: var(--input-bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border-card);
+  }
+
+  .github-link {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--primary);
+    text-decoration: none;
+    padding: 4px 10px;
+    border-radius: 5px;
+    border: 1px solid var(--border-card);
+    background-color: var(--bg-card);
+    transition: all 0.15s ease;
+  }
+
+  .github-link:hover {
+    background-color: var(--primary);
+    color: #ffffff;
+    border-color: var(--primary);
+  }
+
+  .opt-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background-color: var(--text-primary);
+    color: var(--bg-page);
+    padding: 8px 18px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    z-index: 1000;
+  }
+
+  .opt-toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
   }
 
   .card {
@@ -267,8 +324,12 @@ limitations under the License.
 <body>
   <div class="settings-container">
     <div class="page-header">
-      <img src="icon16.png" class="header-icon" alt="">
-      <h1 class="page-title">IPvFooBarBaz Settings</h1>
+      <div class="header-left">
+        <img src="icon16.png" class="header-icon" alt="">
+        <h1 class="page-title">IPvFooBarBaz Settings</h1>
+        <span class="version-tag">v2.37</span>
+      </div>
+      <a href="https://github.com/Sohag-Dev12/ipvfoobarbaz" target="_blank" class="github-link">GitHub ↗</a>
     </div>
 
     <!-- Lookup Provider Card -->
@@ -310,5 +371,6 @@ limitations under the License.
       <button id="dismiss_btn" class="btn btn-primary" type="button">Dismiss</button>
     </div>
   </div>
+  <div id="opt_toast" class="opt-toast"></div>
 </body>
 </html>

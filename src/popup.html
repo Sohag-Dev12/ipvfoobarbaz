@@ -203,6 +203,21 @@ body {
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
+.search-kbd {
+  position: absolute;
+  right: 8px;
+  font-size: 10px;
+  font-family: inherit;
+  color: var(--text-dim);
+  background: var(--btn-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  padding: 1px 4px;
+  pointer-events: none;
+  line-height: 12px;
+  user-select: none;
+}
+
 .search-clear-btn {
   position: absolute;
   right: 6px;
@@ -243,13 +258,37 @@ body {
   border-color: #3b82f6;
 }
 
+/* Column Header bar */
+.table-col-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-card);
+  border-radius: 6px 6px 0 0;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  user-select: none;
+}
+
+.col-hdr-right {
+  text-align: right;
+  padding-right: 2px;
+}
+
 /* Scroll Container */
 .table-scroll-container {
   max-height: 440px;
   overflow-y: auto;
   overflow-x: auto;
-  border-radius: 6px;
+  border-radius: 0 0 6px 6px;
   border: 1px solid var(--border-subtle);
+  border-top: none;
   background-color: var(--bg-card);
 }
 
@@ -449,6 +488,37 @@ td {
   color: #ffffff;
 }
 
+.pbtn-w:hover {
+  background-color: #6366f1;
+  color: #ffffff;
+  border-color: #4f46e5;
+}
+.pbtn-a:hover {
+  background-color: #0284c7;
+  color: #ffffff;
+  border-color: #0369a1;
+}
+.pbtn-r:hover {
+  background-color: #d97706;
+  color: #ffffff;
+  border-color: #b45309;
+}
+.pbtn-i:hover {
+  background-color: #9333ea;
+  color: #ffffff;
+  border-color: #7e22ce;
+}
+.pbtn-h:hover {
+  background-color: #dc2626;
+  color: #ffffff;
+  border-color: #b91c1c;
+}
+.pbtn-b:hover {
+  background-color: #0d9488;
+  color: #ffffff;
+  border-color: #0f766e;
+}
+
 /* Snipped text */
 .snippedTextInvisible {
   position: absolute;
@@ -572,27 +642,31 @@ td {
 /* Toast */
 #copy_toast {
   position: fixed;
-  bottom: 12px;
+  bottom: 20px;
   left: 50%;
-  transform: translateX(-50%) translateY(25px);
+  transform: translateX(-50%) translateY(20px) scale(0.96);
   background: var(--toast-bg);
   color: var(--toast-fg);
-  padding: 6px 14px;
-  border-radius: 6px;
+  padding: 6px 16px;
+  border-radius: 20px;
   font-family: inherit;
   font-size: 11px;
-  font-weight: 500;
+  font-weight: 600;
   pointer-events: none;
   opacity: 0;
   transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   z-index: 1000;
   white-space: nowrap;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  backdrop-filter: blur(8px);
 }
 
 #copy_toast.show {
   opacity: 1;
-  transform: translateX(-50%) translateY(0);
+  transform: translateX(-50%) translateY(0) scale(1);
 }
 
 /* Lookup Bubble */
@@ -671,6 +745,7 @@ td {
     <div class="search-wrapper">
       <span class="search-icon">🔍</span>
       <input type="text" id="search_input" placeholder="Filter domains or IP addresses..." autocomplete="off" spellcheck="false">
+      <span class="search-kbd" id="search_kbd">/</span>
       <button type="button" id="search_clear" class="search-clear-btn" title="Clear filter" style="display:none;">✕</button>
     </div>
     <div class="filter-pills">
@@ -682,7 +757,12 @@ td {
 
   <button id="beg">Click to grant permission</button>
 
-  <!-- Table Container -->
+  <!-- Table Header & Scroll Container -->
+  <div class="table-col-header">
+    <span>Domain &amp; Protocol</span>
+    <span>Address / Host / ASN</span>
+    <span class="col-hdr-right">Tools</span>
+  </div>
   <div class="table-scroll-container">
     <table id="addr_table"></table>
     <div id="no_results" class="no-results" style="display:none;">No matching domains found.</div>
@@ -699,7 +779,10 @@ td {
         📋 Copy All IPs
       </button>
       <button id="copy_table_btn" type="button" class="action-btn" title="Copy table as TSV (spreadsheet format)">
-        📑 Copy Table
+        📑 Copy TSV
+      </button>
+      <button id="copy_json_btn" type="button" class="action-btn" title="Export table data as JSON">
+        { } Copy JSON
       </button>
     </div>
     <div class="footer-right">

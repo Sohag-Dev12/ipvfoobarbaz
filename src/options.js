@@ -80,6 +80,9 @@ window.onload = async () => {
         ipUrl.value = template.ip;
       }
       updateValidationAndWrite();
+      if (!isFirst) {
+        showOptToast("Provider updated: " + radio.value);
+      }
     });
   }
 
@@ -132,10 +135,21 @@ window.onload = async () => {
     }
   });
 
+  let toastTimer = null;
+  function showOptToast(msg) {
+    const t = document.getElementById("opt_toast");
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 1500);
+  }
+
   document.getElementById("revert_btn").onclick = function() {
     revertNAT64();
     chrome.runtime.sendMessage({setStorageSyncDebounce: DEFAULT_SYNC_OPTIONS});
     applyOptionsToPage(DEFAULT_SYNC_OPTIONS);
+    showOptToast("Settings restored to defaults");
   };
 
   document.getElementById("dismiss_btn").onclick = function() {
