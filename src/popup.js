@@ -17,8 +17,10 @@ limitations under the License.
 
 "use strict";
 
+// Requires <script src="common.js">
+
+const IS_CHROMIUM = !!chrome.runtime.getManifest().background.service_worker;
 const ALL_URLS = "<all_urls>";
-const IS_MOBILE = /\bMobile\b/.test(navigator.userAgent);
 
 // Partial code from ipvfoobar.
 // -- hostnames & asn lookups --
@@ -61,22 +63,47 @@ function addBtn(url, letter, title, utilsTd){
 
 
 const tabId = window.location.hash.substr(1);
-if (!isFinite(Number(tabId))) {
-  throw "Bad tabId";
-}
 
 let table = null;
+let gSawHttpGt1 = false;
 
 window.onload = async function() {
   table = document.getElementById("addr_table");
   table.onmousedown = handleMouseDown;
-  await beg();
+
   if (IS_MOBILE) {
     document.getElementById("mobile_footer").style.display = "flex";
+
+    document.addEventListener("selectionchange", redrawLookupBubble);
+    const resizeObserver = new ResizeObserver(redrawLookupBubble);
+    resizeObserver.observe(table);
   }
-  setMode(getCurrentMode(options));
-  connectToExtension();
+  if (/^[0-9]+$/.test(tabId)) {
+    await beg();
+    connectToExtension();
+  } else if (tabId) {
+    throw new Error(`Bad tabId: ${tabId}`);
+  } else {
+    console.log("No tabId, using test table")
+    const TEST_TUPLES = [
+      ["ipv6.example.com", "2001:db8::f00", "6", DFLAG_H1],
+      ["ipv4.example.com", "192.0.2.9", "4", DFLAG_NO_TLS],
+      ["cached.example.com", "2001:db8::f00", "6", DFLAG_H3 | AFLAG_CACHE],
+    ];
+    pushAll(TEST_TUPLES, "646", REGULAR_COLOR, 0, true);
+  }
 };
+
+// Monitor for dark mode updates.
+const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+let darkMode = darkModeQuery.matches;
+darkModeQuery.addEventListener("change", async (event) => {
+  darkMode = event.matches;
+  await optionsReady;
+  if (lastColor) {
+    setColorIsDarkMode(lastColor, darkMode);
+  }
+});
 
 async function beg() {
   const p = await chrome.permissions.getAll();
@@ -97,18 +124,47 @@ async function beg() {
   });
 }
 
+function redrawLookupBubble() {
+  const bubble = document.getElementById("lookup_bubble");
+  const sel = window.getSelection();
+  const text = sel.toString();
+  const menuTitle = lookupMenuTitle(text);
+  const href = selectionToLookupUrl(text)?.href;
+
+  if (!(menuTitle && href)) {
+    bubble.style.display = "none";
+    return;
+  }
+
+  const link = document.getElementById("lookup_link");
+  link.textContent = menuTitle;
+  link.href = href;
+
+  const selRect = sel.getRangeAt(0).getBoundingClientRect();
+  const tableRect = table.getBoundingClientRect();
+
+  bubble.style.display = "block";
+  bubble.style.top = `${selRect.bottom + window.scrollY + 5}px`;
+  bubble.style.setProperty('--bubble-left', `${selRect.left - 10}px`);
+  bubble.style.setProperty('--table-left', `${tableRect.left}px`);
+  bubble.style.setProperty('--table-width', `${tableRect.width}px`);
+
+  const bubbleRect = bubble.getBoundingClientRect();
+  bubble.style.setProperty('--bubble-width', `${bubbleRect.width}px`);
+}
+
 function connectToExtension() {
   const port = chrome.runtime.connect(null, {name: tabId});
   port.onMessage.addListener((msg) => {
     document.bgColor = "";
-    console.log("onMessage", msg.cmd, msg);
+    //console.log("onMessage", msg.cmd, msg);
     switch (msg.cmd) {
       case "pushAll":
-        return pushAll(msg.tuples, msg.pattern, msg.spillCount);
+        return pushAll(msg.tuples, msg.pattern, msg.color, msg.spillCount, msg.sawHttpGt1);
       case "pushOne":
         return pushOne(msg.tuple);
       case "pushPattern":
-        return pushPattern(msg.pattern);
+        return pushPattern(msg.pattern, msg.color);
       case "pushSpillCount":
         return pushSpillCount(msg.spillCount);
       case "shake":
@@ -123,12 +179,13 @@ function connectToExtension() {
 }
 
 // Clear the table, and fill it with new data.
-function pushAll(tuples, pattern, spillCount) {
+function pushAll(tuples, pattern, color, spillCount, sawHttpGt1) {
+  gSawHttpGt1 = sawHttpGt1;
   removeChildren(table);
   for (let i = 0; i < tuples.length; i++) {
     table.appendChild(makeRow(i == 0, tuples[i]));
   }
-  pushPattern(pattern);
+  pushPattern(pattern, color);
   pushSpillCount(spillCount);
 }
 
@@ -160,7 +217,12 @@ function pushOne(tuple) {
 }
 
 let lastPattern = "";
-async function pushPattern(pattern) {
+let lastColor = "";  // regular/incognito color scheme
+function pushPattern(pattern, color) {
+  if (lastColor != color) {
+    lastColor = color;
+    setColorIsDarkMode(lastColor, darkMode);
+  }
   if (!IS_MOBILE) {
     return;
   }
@@ -169,12 +231,9 @@ async function pushPattern(pattern) {
   } else {
     return;
   }
-  await spriteImgReady;
   for (const color of ["darkfg", "lightfg"]) {
-    const canvas = document.getElementById(`pattern_icon_${color}`);
-    const ctx = canvas.getContext("2d");
-    const imageData = buildIcon(pattern, 32, color);
-    ctx.putImageData(imageData, 0, 0);
+    const img = document.getElementById(`pattern_icon_${color}`);
+    img.src = iconPath(pattern, 32, color);
   }
 }
 
@@ -201,14 +260,21 @@ function shake() {
 
 // On mobile, zoom in so the table fills the viewport.
 function zoomHack() {
+  // This value is actually a bit smaller than we want,
+  // but apparently a too-narrow viewport results in a best-fit zoom.
   const tableWidth = document.querySelector('table').offsetWidth;
   document.querySelector('meta[name="viewport"]').setAttribute('content', `width=${tableWidth}`);
+
+  // Leave room to the right for the text selection handle,
+  // to prevent jittery zooming if the user selects an IP address.
+  // 8% of the table width seems reasonable.
+  table.style.setProperty('--cache-min-width', `${tableWidth * 0.08}px`);
 }
 
 // Workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=1395025
 let redrawn = false;
 function scrollbarHack() {
-  if (typeof browser == "undefined") {
+  if (IS_CHROMIUM) {
     return;  // nothing to do on Chrome.
   }
   setTimeout(() => {
@@ -220,13 +286,6 @@ function scrollbarHack() {
       redrawn = true;
     }
   }, 200);
-}
-
-function removeChildren(n) {
-  while (n.hasChildNodes()) {
-    n.removeChild(n.lastChild);
-  }
-  return n;
 }
 
 // Copy the contents of src into dst, making minimal changes.
@@ -254,22 +313,49 @@ function makeImg(src, title) {
   return img;
 }
 
-function makeSslImg(flags) {
-  switch (flags & (FLAG_SSL | FLAG_NOSSL)) {
-    case FLAG_SSL | FLAG_NOSSL:
-      return makeImg(
-          "gray_schrodingers_lock.png",
-          "Mixture of HTTPS and non-HTTPS connections.");
-    case FLAG_SSL:
-      return makeImg(
-          "gray_lock.png",
-          "Connection uses HTTPS.\n" +
-          "Warning: IPvFoo does not verify the integrity of encryption.");
-    default:
-      return makeImg(
-          "gray_unlock.png",
-          "Connection does not use HTTPS.");
+function makeHttpImg(flags) {
+  if (flags & DFLAG_NO_TLS) {
+    return makeImg(
+        "gray_unlock.png",
+        "Some connections do not use TLS.");
   }
+  if (gSawHttpGt1) {
+    if (flags & DFLAG_H3) {
+      return makeImg(
+          "gray_h3.png",
+          "HTTP/3 (with TLS) is the max version seen.");
+    }
+    if (flags & DFLAG_H2) {
+      return makeImg(
+          "gray_h2.png",
+          "HTTP/2 (with TLS) is the max version seen.");
+    }
+    if (flags & DFLAG_H1) {
+      return makeImg(
+          "gray_h1.png",
+          "HTTP/1.x (with TLS) is the max version seen.");
+    }
+  } else if (flags & (DFLAG_H1 | DFLAG_H2 | DFLAG_H3)) {
+    return makeImg(
+        "gray_lock.png",
+        "All connections use TLS.");
+  }
+  return makeImg(
+      "gray_question.png",
+      "Failed to parse HTTP status.");
+}
+
+function makeSelectMe(...children) {
+  const span = document.createElement("span");
+  span.className = "selectMe";
+  for (const child of children) {
+    if (child instanceof Node) {
+      span.appendChild(child);
+    } else {
+      span.appendChild(document.createTextNode(child));
+    }
+  }
+  return span;
 }
 
 function makeRow(isFirst, tuple) {
@@ -283,18 +369,15 @@ function makeRow(isFirst, tuple) {
     tr.className = "mainRow";
   }
 
-  // Build the SSL icon for the "zeroth" pseudo-column.
-  const sslImg = makeSslImg(flags);
-  sslImg.className = "sslImg";
+  // Build the HTTP icon for the "zeroth" pseudo-column.
+  const httpImg = makeHttpImg(flags);
+  httpImg.className = "httpImg";
 
   // Build the "Domain" column.
   const domainTd = document.createElement("td");
-  domainTd.appendChild(sslImg);
-  if (domain.length > LONG_DOMAIN) {
-    domainTd.appendChild(makeSnippedText(domain, Math.floor(LONG_DOMAIN / 2)));
-  } else {
-    domainTd.appendChild(document.createTextNode(domain));
-  }
+  domainTd.appendChild(httpImg);
+  domainTd.appendChild(makeSelectMe(
+      domain.length > LONG_DOMAIN ? makeSnippedText(domain, Math.floor(LONG_DOMAIN / 2)) : domain));
   domainTd.className = "domainTd";
   domainTd.onclick = handleClick;
   domainTd.oncontextmenu = handleContextMenu;
@@ -306,9 +389,15 @@ function makeRow(isFirst, tuple) {
     case "4": addrClass = " ip4"; break;
     case "6": addrClass = " ip6"; break;
   }
-  const connectedClass = (flags & FLAG_CONNECTED) ? " highlight" : "";
+  const connectedClass = (flags & DFLAG_CONNECTED) ? " highlight" : "";
   addrTd.className = `addrTd${addrClass}${connectedClass}`;
-  addrTd.appendChild(document.createTextNode(addr));
+  const match = addr.match(/^(.*:)(\d+[.]\d+[.]\d+[.]\d+)$/);
+  if (match) {
+    addrTd.appendChild(makeSelectMe(match[1], makeSelectMe(match[2])));
+  } else {
+    addrTd.appendChild(makeSelectMe(addr));
+  }
+
   addrTd.onclick = handleClick;
   addrTd.oncontextmenu = handleContextMenu;
 
@@ -434,15 +523,19 @@ function makeRow(isFirst, tuple) {
   // the Cached icon because I'm too lazy to align multiple columns properly.
   const cacheTd = document.createElement("td");
   cacheTd.className = `cacheTd${connectedClass}`;
-  if (flags & FLAG_WEBSOCKET) {
+  if (flags & DFLAG_WEBSOCKET) {
     cacheTd.appendChild(
         makeImg("websocket.png", "WebSocket handshake; connection may still be active."));
     cacheTd.style.paddingLeft = '6pt';
-  } else if (!(flags & FLAG_NOTWORKER)) {
+  } else if (flags & AFLAG_PREFETCH) {
+    cacheTd.appendChild(
+        makeImg("prefetch.png", "Prefetched request; may be proxied."));
+    cacheTd.style.paddingLeft = '6pt';
+  } else if (flags & AFLAG_WORKER) {
     cacheTd.appendChild(
         makeImg("serviceworker.png", "Service Worker request; possibly from a different tab."));
     cacheTd.style.paddingLeft = '6pt';
-  } else if (!(flags & FLAG_UNCACHED)) {
+  } else if (flags & AFLAG_CACHE) {
     cacheTd.appendChild(
         makeImg("cached_arrow.png", "Data from cached requests only."));
     cacheTd.style.paddingLeft = '6pt';
@@ -523,6 +616,11 @@ function handleMouseDown(e) {
   }
 }
 
+function sameRange(r1, r2) {
+  return (r1.compareBoundaryPoints(Range.START_TO_START, r2) == 0 &&
+          r1.compareBoundaryPoints(Range.END_TO_END, r2) == 0);
+}
+
 function isSpuriousSelection(sel, newTimeStamp) {
   if (newTimeStamp - oldTimeStamp > 10) {
     return false;
@@ -531,10 +629,7 @@ function isSpuriousSelection(sel, newTimeStamp) {
     return true;
   }
   for (let i = 0; i < sel.rangeCount; i++) {
-    const r1 = sel.getRangeAt(i);
-    const r2 = oldRanges[i];
-    if (r1.compareBoundaryPoints(Range.START_TO_START, r2) != 0 ||
-        r1.compareBoundaryPoints(Range.END_TO_END, r2) != 0) {
+    if (!sameRange(sel.getRangeAt(i), oldRanges[i])) {
       return true;
     }
   }
@@ -546,53 +641,43 @@ function handleContextMenu(e) {
   if (isSpuriousSelection(sel, e.timeStamp)) {
     sel.removeAllRanges();
   }
-  selectWholeAddress(this, sel);
+  selectAddress(this, e.target, sel);
   return sel;
 }
 
-function handleClick() {
-  selectWholeAddress(this, window.getSelection());
+// Find the innermost "selectMe" that the user clicked on directly,
+// otherwise find the outermost "selectMe" in the cell.
+// This will either select a NAT64 IPv4 suffix, or the entire address.
+function findSelectMe(node, target) {
+  const range = document.createRange();
+  range.selectNodeContents(
+      target?.closest(".selectMe") || node.querySelector(".selectMe"));
+  return range;
+}
+
+function handleClick(e) {
+  const sel = window.getSelection();
+
+  // If the user clicked an already-selected address, deselect it.
+  // Don't check timeStamp because it depends how long they held the button.
+  if (e.detail == 1 && oldRanges.length == 1) {
+    if (sameRange(findSelectMe(this, e.target), oldRanges[0])) {
+      sel.removeAllRanges();
+      return;
+    }
+  }
+
+  selectAddress(this, e.target, sel);
 }
 
 // If the user hasn't manually selected part of the address, then select
 // the whole thing, to make copying easier.
-function selectWholeAddress(node, sel) {
+function selectAddress(node, target, sel) {
   if (sel.isCollapsed || !sel.containsNode(node, true)) {
-    const range = document.createRange();
-    range.selectNodeContents(node);
     sel.removeAllRanges();
-    sel.addRange(range);
+    sel.addRange(findSelectMe(node, target));
   }
 }
-
-// dark mode
-const prefersDark = () => window?.matchMedia?.('(prefers-color-scheme:dark)')?.matches ?? false;
-function getCurrentMode(opts = options){
-  let darkMode = false;
-  switch (opts.popupColorScheme){
-    case 'light':
-      darkMode = false;
-      break;
-    case 'dark':
-      darkMode = true;
-      break;
-    case 'system':
-    default:
-      darkMode = prefersDark();
-  }
-  return darkMode;
-}
-function setMode(dark){
-  if (document.body){
-    if (dark) document.body.classList.add('dark')
-    else document.body.classList.remove('dark');
-  }
-}
-watchOptions(function(optionsChanged) {
-  if (optionsChanged.includes('popupColorScheme')){
-    setMode(getCurrentMode(options));
-  }
-});
 
 function full_IPv6(ip_string) {
   // replace ipv4 address if any

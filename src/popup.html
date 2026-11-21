@@ -33,6 +33,7 @@ table {
   background-image: url("1x1_808080.png");
   background-position: top 0px left 23px;
   background-repeat: repeat-y;
+  --cache-min-width: 0px;
 }
 table, td, tr {
   border-width: 1px;
@@ -49,13 +50,10 @@ tr {
 img {
   user-select: none;
 }
-img::selection {
-  background-color: transparent;
-}
 .mainRow {
   font-weight: bold;
 }
-.sslImg {
+.httpImg {
   padding-right: 6pt;
 }
 .domainTd {
@@ -70,6 +68,8 @@ img::selection {
 }
 .cacheTd {
   border-left-width: 0;
+  text-align: right;
+  min-width: var(--cache-min-width);
 }
 .ip4 {
   color: #800000;
@@ -144,45 +144,89 @@ img::selection {
   margin-left: 1px;
   font-weight: normal;
 }
-.pbtn:hover{
+.pbtn:hover {
   opacity: 0.75;
 }
-.pbtn:active{
+.pbtn:active {
   opacity: 0.5;
 }
 
-/* dark mode */
-body.dark {
-  background-color: #222;
-  color: #eee;
-}
-.dark .sslImg {
-  filter: invert(1);
-}
-.dark .snipImg {
-  filter: invert(1);
-}
-.dark .addrTd {
-  color: #8080ff;
-}
-.dark .ip4 {
-  color: #ff8080;
-}
-.dark .ip6 {
-  color: #80ff80;
-}
-.dark .highlight {
-  background-color: #505030;
-}
-.dark #pattern_icon_darkfg {
+#lookup_bubble {
+  --bubble-fg: #000;
+  --bubble-left: 0px;
+  --table-left: 0px;
+  --table-width: 0px;
+  --bubble-width: 0px;
+  --max-left: calc(var(--table-left) + var(--table-width) - var(--bubble-width));
+  position: absolute;
   display: none;
+  background: #eee;
+  border: 1px solid var(--bubble-fg);
+  border-radius: 5px;
+  box-sizing: border-box;
+  left: clamp(var(--table-left), var(--bubble-left), var(--max-left));
+  max-width: var(--table-width);
 }
-.dark #pattern_icon_lightfg {
-  display: initial;
+#lookup_bubble::before {
+  /* arrow pointing up from the border. */
+  --arrow-size: 5px;
+  content: "";
+  position: absolute;
+  top: calc(-1 * var(--arrow-size));
+  left: calc(var(--bubble-left) - min(var(--bubble-left), var(--max-left)) + 10px);
+  width: 0;
+  height: 0;
+  border-left: var(--arrow-size) solid transparent;
+  border-right: var(--arrow-size) solid transparent;
+  border-bottom: var(--arrow-size) solid var(--bubble-fg);
 }
-.dark .pbtn {
-  background-color: #aaa;
-  color: #000;
+#lookup_bubble a {
+  display: block;
+  padding: 6pt;
+  color: var(--bubble-fg);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+
+/* dark mode */
+@media (prefers-color-scheme: dark) {
+  body {
+    background-color: #222;
+    color: #eee;
+  }
+  .httpImg {
+    filter: invert(1);
+  }
+  .snipImg {
+    filter: invert(1);
+  }
+  .addrTd {
+    color: #8080ff;
+  }
+  .ip4 {
+    color: #ff8080;
+  }
+  .ip6 {
+    color: #80ff80;
+  }
+  .highlight {
+    background-color: #505030;
+  }
+  #pattern_icon_darkfg {
+    display: none;
+  }
+  #pattern_icon_lightfg {
+    display: initial;
+  }
+  .pbtn {
+    background-color: #aaa;
+    color: #000;
+  }
+  #lookup_bubble {
+    background: #666;
+    --bubble-fg: #eee;
+  }
 }
 
 @keyframes shake {
@@ -202,6 +246,7 @@ body.dark {
 }
 
 </style>
+<script type="text/javascript" src="iputil.js"></script>
 <script type="text/javascript" src="common.js"></script>
 <script type="text/javascript" src="psl.min.js"></script>
 <script type="text/javascript" src="popup.js"></script>
@@ -215,8 +260,11 @@ body.dark {
   </div>
   <div id="mobile_footer">
     <div id="options_link"><a href="options.html">Options</a></div>
-    <canvas id="pattern_icon_lightfg" width="32px" height="32px"></canvas>
-    <canvas id="pattern_icon_darkfg" width="32px" height="32px"></canvas>
+    <img id="pattern_icon_lightfg">
+    <img id="pattern_icon_darkfg">
+  </div>
+  <div id="lookup_bubble">
+    <a id="lookup_link" href="#" target="_blank">Lookup on lookup.example.com</a>
   </div>
 </div>
 </body>

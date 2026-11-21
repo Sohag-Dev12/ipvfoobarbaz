@@ -4,8 +4,10 @@ Everything is captured privately using the webRequest API, however Google DNS is
 
 This is a fork of the original IPvFoo, and uses code from the IPvFooBar (which itself is a fork of IPvFoo).
 
-## Screenshot
+## Screenshots
 ![Screenshot](/misc/screenshot_webstore_1_640x400.png?raw=true)
+
+![Screenshot](/misc/screenshot_options.png?raw=true)
 
 ## Add to Chrome
 https://chromewebstore.google.com/detail/ipvfoobarbaz/jiaodmfhmjdhefmljkipedcbpkplpfcn
@@ -13,10 +15,12 @@ https://chromewebstore.google.com/detail/ipvfoobarbaz/jiaodmfhmjdhefmljkipedcbpk
 ## Add to Firefox
 https://addons.mozilla.org/firefox/addon/ipvfoobarbaz
 
+To use IPvFooBarBaz with Firefox's default search engine, uncheck **Settings > Search > Show search terms in the address bar on results pages**
+
 ## Add to Edge
-Coming Soon
+Coming Soon  
 *(You can also run the [Chrome version](https://chromewebstore.google.com/detail/ipvfoobarbaz/jiaodmfhmjdhefmljkipedcbpkplpfcn) on Edge, as they are identical.)*
 
 ## Safari?
 
-IPvFoo cannot be [ported to Safari](https://github.com/pmarks-net/ipvfoo/issues/39) because the `webRequest` API does not report IP addresses.  In theory, a Safari extension could do its own DNS lookups over HTTPS, but such behavior is beyond the scope of IPvFoo.
+IPvFoo cannot be [ported to Safari](https://github.com/pmarks-net/ipvfoo/issues/39) because the `webRequest` API does not report IP addresses.  In theory, a Safari extension could do its own DNS lookups, but this would create additional network traffic, and may disagree with the browser's address selection.

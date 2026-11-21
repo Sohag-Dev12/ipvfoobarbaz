@@ -37,9 +37,11 @@ user can demand a popup before any IP addresses are available.
 
 "use strict";
 
-if (chrome.runtime.getManifest().background.service_worker) {
-  // This line runs on Chrome, but not Firefox.
-  importScripts("common.js");
+const IS_CHROMIUM = !!chrome.runtime.getManifest().background.service_worker;
+if (IS_CHROMIUM) {
+  // This only runs on Chrome.
+  // Firefox uses manifest.json/background/scripts instead.
+  importScripts("iputil.js", "common.js");
 }
 
 // Possible states for an instance of TabInfo.
@@ -51,20 +53,12 @@ const TAB_DEAD = 2;
 // RequestFilter for webRequest events.
 const FILTER_ALL_URLS = { urls: ["<all_urls>"] };
 
-// Distinguish IP address and domain name characters.
-// Note that IP6_CHARS must not match "beef.de"
-const IP4_CHARS = /^[0-9.]+$/;
-const IP6_CHARS = /^[0-9A-Fa-f]*:[0-9A-Fa-f:.]*$/;
-const DNS_CHARS = /^[0-9A-Za-z._-]+$/;
-
 const SECONDS = 1000;  // to milliseconds
 
 const NAME_VERSION = (() => {
   const m = chrome.runtime.getManifest();
   return `${m.name} v${m.version}`;
 })();
-
-const IS_MOBILE = /\bMobile\b/.test(navigator.userAgent);
 
 let debug = false;
 function debugLog() {
@@ -73,9 +67,18 @@ function debugLog() {
   }
 }
 
+// Log errors from async listeners, because otherwise Firefox hides them
+// in the global console.
+function wrap(f) {
+  const tracer = new Error("wrap() stack trace");
+  return (...args) => f(...args).catch((err) => {
+    console.error("Error in async listener:", err, tracer);
+  });
+}
+
 function parseUrl(url) {
   let domain = null;
-  let ssl = false;
+  let tls = false;
   let ws = false;
 
   const u = new URL(url);
@@ -87,17 +90,48 @@ function parseUrl(url) {
     domain = u.hostname || "";
     switch (u.protocol) {
       case "https:":
-        ssl = true;
+        tls = true;
         break;
       case "wss:":
-        ssl = true;
+        tls = true;
         // fallthrough
       case "ws:":
         ws = true;
         break;
     }
   }
-  return { domain: domain, ssl: ssl, ws: ws, origin: u.origin };
+  return { domain: domain, tls: tls, ws: ws, origin: u.origin };
+}
+
+function httpFlags(tls, statusLine) {
+  if (!tls) return DFLAG_NO_TLS;
+  const m = statusLine.match(/^HTTP\/(\d+)/);
+  if (m) {
+    const v = parseInt(m[1], 10);
+    if (v == 1) return DFLAG_H1;
+    if (v == 2) return DFLAG_H2;
+    if (v == 3) return DFLAG_H3;
+  }
+  return 0;  // show "?" if unknown.
+}
+
+function updateNAT64(domain, addr) {
+  if (!(IPV4_ONLY_DOMAINS.has(domain) && addr)) {
+    return;
+  }
+  const packed = parseIP(addr);
+  if (packed.length != 128/4) {
+    return;  // not an IPv6 address
+  }
+  // Heuristic: Don't consider this a NAT64 prefix if the embedded
+  // IPv4 address falls under 0.x.x.x/8.  This filters out cases where all
+  // traffic is proxied to the same address, assuming that most proxies
+  // have a low-numbered suffix like ::1.
+  if (packed.substr(96/4, 2) == '00') {
+    return;
+  }
+  // If this is a new prefix, the watchOptions callback will handle it.
+  addPackedNAT64(packed.slice(0, 96/4));
 }
 
 class SaveableEntry {
@@ -230,7 +264,7 @@ class TabInfo extends SaveableEntry {
   spillCount = 0;        // How many requests didn't fit in domains.
   lastPattern = "";      // To avoid redundant icon redraws.
   lastTooltip = "";      // To avoid redundant tooltip updates.
-  color = "regularColorScheme";  // ... or incognitoColorScheme.
+  color = REGULAR_COLOR  // or INCOGNITO_COLOR
 
   // Private, to avoid writing to storage.
   #state = TAB_BIRTH;
@@ -238,7 +272,6 @@ class TabInfo extends SaveableEntry {
   constructor(prefix, tabId) {
     super(prefix, tabId);
 
-    if (!spriteImg.ready) throw "must await spriteImgReady!";
     if (!options.ready) throw "must await optionsReady!";
 
     if (tabMap[tabId]) throw "Duplicate entry in tabMap";
@@ -318,7 +351,7 @@ class TabInfo extends SaveableEntry {
     this.save();
   }
 
-  addDomain(domain, addr, flags) {
+  addDomain(domain, dflags, addr, aflags) {
     let d = this.domains[domain];
     if (!d) {
       // Limit the number of domains per page, to avoid wasting RAM.
@@ -327,17 +360,21 @@ class TabInfo extends SaveableEntry {
         return;
       }
       d = this.domains[domain] =
-          new DomainInfo(this, domain, addr || "(lost)", flags);
+          new DomainInfo(this, domain, addr || "(lost)", dflags | aflags);
       d.countUp();
     } else {
       const oldAddr = d.addr;
       const oldFlags = d.flags;
-      // Don't allow a cached IP to overwrite an actually-connected IP.
-      if (addr && ((flags & FLAG_UNCACHED) || !(oldFlags & FLAG_UNCACHED))) {
+
+      // Domain flags just accumulate.
+      d.flags |= dflags;
+
+      // The numerical value of aflags determines which address to keep
+      // (uncached replaces cached, etc.)
+      if (addr && aflags <= (d.flags & AFLAG_MASK)) {
         d.addr = addr;
+        d.flags = (d.flags & DFLAG_MASK) | aflags;
       }
-      // Merge in the previous flags.
-      d.flags |= flags;
       d.countUp();
       // Don't update if nothing has changed.
       if (d.addr == oldAddr && d.flags == oldFlags) {
@@ -392,16 +429,17 @@ class TabInfo extends SaveableEntry {
 
     // Don't waste time redrawing the same icon.
     if (this.lastPattern != pattern) {
-      const color = options[this.color];
+      // Briefly defaults to "" on first boot.
+      const color = options[this.color] || "darkfg";
       action.setIcon({
         "tabId": this.id(),
-        "imageData": {
-          "16": buildIcon(pattern, 16, color),
-          "32": buildIcon(pattern, 32, color),
+        "path": {
+          "16": iconPath(pattern, 16, color),
+          "32": iconPath(pattern, 32, color),
         },
       });
-      // Send icon to the popup window (mobile only)
-      popups.pushPattern(this.id(), pattern);
+      // Send icon to the popup window.
+      popups.pushPattern(this.id(), pattern, this.color);
       action.setPopup({
         "tabId": this.id(),
         "popup": `popup.html#${this.id()}`,
@@ -415,7 +453,9 @@ class TabInfo extends SaveableEntry {
   }
 
   pushAll() {
-    popups.pushAll(this.id(), this.getTuples(), this.lastPattern, this.spillCount);
+    popups.pushAll(
+        this.id(), this.getTuples(), this.lastPattern, this.color,
+        this.spillCount, options[SAW_HTTP_GT_1]);
   }
 
   pushOne(domain) {
@@ -426,7 +466,7 @@ class TabInfo extends SaveableEntry {
   getTuples() {
     const mainDomain = this.mainDomain || "(no domain)";
     const domains = Object.keys(this.domains).sort();
-    const mainTuple = [mainDomain, "(no address)", "?", FLAG_UNCACHED | FLAG_NOTWORKER];
+    const mainTuple = [mainDomain, "(no address)", "?", 0];
     const tuples = [mainTuple];
     for (const domain of domains) {
       const d = this.domains[domain];
@@ -468,9 +508,9 @@ class DomainInfo {
     this.flags = flags;
   }
 
-  // count and FLAG_CONNECTED will be computed from requestMap.
+  // count and DFLAG_CONNECTED will be computed from requestMap.
   toJSON() {
-    return [this.addr, this.flags & ~FLAG_CONNECTED];
+    return [this.addr, this.flags & ~DFLAG_CONNECTED];
   }
 
   static fromJSON(tabInfo, domain, json) {
@@ -478,10 +518,9 @@ class DomainInfo {
     return new DomainInfo(tabInfo, domain, addr, flags);
   }
 
-  // In theory, we should be using a full-blown subnet parser/matcher here,
-  // but let's keep it simple and stick with text for now.
   addrVersion() {
     if (this.addr) {
+      // NAT64 addresses use the prefix::a.b.c.d format.
       if (/^64:ff9b::/.test(this.addr)) return "4";  // RFC6052
       if (/^64:ff9b:1:/.test(this.addr)) return "4"; // RFC8215
       if (this.addr.indexOf(".") >= 0) return "4";
@@ -491,7 +530,7 @@ class DomainInfo {
   }
 
   async countUp() {
-    this.flags |= FLAG_CONNECTED;
+    this.flags |= DFLAG_CONNECTED;
     if (++this.count == 1 && !this.inhibitZero) {
       // Keep the address highlighted for at least 500ms.
       this.inhibitZero = true;
@@ -509,7 +548,7 @@ class DomainInfo {
 
   #checkZero() {
     if (this.count == 0 && !this.inhibitZero) {
-      this.flags &= ~FLAG_CONNECTED;
+      this.flags &= ~DFLAG_CONNECTED;
       this.tabInfo.pushOne(this.domain);
     }
   }
@@ -520,6 +559,7 @@ class RequestInfo extends SaveableEntry {
   // but for Service Worker requests there may be multiple tabs.
   tabIdToBorn = newMap();
   domain = null;
+  prefetch = false;
 
   afterLoad() {
     for (const [tabId, tabBorn] of Object.entries(this.tabIdToBorn)) {
@@ -531,7 +571,7 @@ class RequestInfo extends SaveableEntry {
       if (!this.domain) {
         continue;  // still waiting for onResponseStarted
       }
-      tabInfo.addDomain(this.domain, null, 0);
+      tabInfo.addDomain(this.domain, 0, null, 0);
     }
     if (Object.keys(this.tabIdToBorn).length == 0) {
       requestMap.remove(this.id());
@@ -549,13 +589,13 @@ class IPCacheEntry extends SaveableEntry {
 // tabId -> TabInfo
 const tabMap = new SaveableMap(TabInfo, "tab/")
 
-// requestId -> {tabInfo, domain}
+// requestId -> RequestInfo
 const requestMap = new SaveableMap(RequestInfo, "req/");
 
 // Firefox-only domain->ip cache, to help work around
 // https://bugzilla.mozilla.org/show_bug.cgi?id=1395020
 const IP_CACHE_LIMIT = 1024;
-const ipCache = (typeof browser == "undefined") ? null : new SaveableMap(IPCacheEntry, "ip/");
+const ipCache = IS_CHROMIUM ? null : new SaveableMap(IPCacheEntry, "ip/");
 let ipCacheSize = 0;
 
 function ipCacheGrew() {
@@ -603,25 +643,92 @@ function lookupOriginMap(origin) {
   return originMap[origin] || new Set();
 }
 
+// Dark mode detection. This can eventually be replaced by
+// https://github.com/w3c/webextensions/issues/229
+(async () => {
+  // Only do dark mode detection on first boot.
+  // We will still get updates from the popup windows when visible.
+  await optionsReady;
+  if (options[REGULAR_COLOR]) {
+    return;
+  }
+
+  if (typeof window !== 'undefined' && window.matchMedia) {
+    // Firefox can detect dark mode from the background page.
+    const query = window.matchMedia('(prefers-color-scheme: dark)');
+    setColorIsDarkMode(REGULAR_COLOR, query.matches);
+  } else {
+    // Chrome needs an offscreen document to detect dark mode.
+    // See the onMessage handler below.
+    try {
+      await chrome.offscreen.createDocument({
+        url: "detectdarkmode.html",
+        reasons: ['MATCH_MEDIA'],
+        justification: 'detect light/dark mode for icon colors',
+      });
+    } catch {
+      console.log("detectdarkmode failed!");
+    }
+    try {
+      await chrome.offscreen.closeDocument();
+    } catch {
+      // ignore
+    }
+  }
+})();
+
+chrome.runtime.onMessage.addListener((message) => {
+  if (message.hasOwnProperty("darkModeOffscreen")) {
+    setColorIsDarkMode(REGULAR_COLOR, message.darkModeOffscreen);
+  }
+  if (message.hasOwnProperty("setStorageSyncDebounce")) {
+    storageSyncDebouncer.set(message.setStorageSyncDebounce);
+  }
+});
+
+// This class prevents writing to storage.sync more than once per second,
+// so the user can type in a text field without spamming the network.
+// It runs in background.js to avoid data loss if the user closes the
+// options window within 1 second of typing.
+class StorageSyncDebouncer {
+  latest = {};
+  pending = {};
+  writePromise = null;
+  set(items) {
+    for (let [key, value] of Object.entries(items)) {
+      if (this.latest[key] !== value) {
+        this.latest[key] = value;
+        this.pending[key] = value;
+      }
+    }
+    if (!this.writePromise && Object.keys(this.pending).length > 0) {
+      this.writePromise = this._writeWithDelay();
+    }
+  }
+  async _writeWithDelay() {
+    while (Object.keys(this.pending).length > 0) {
+      const toWrite = this.pending;
+      this.pending = {};
+      //console.log("writing", toWrite);
+      await Promise.all([
+        chrome.storage.sync.set(toWrite),
+        new Promise(resolve => setTimeout(resolve, 1000))
+      ]);
+    }
+    this.writePromise = null;
+  }
+}
+const storageSyncDebouncer = new StorageSyncDebouncer();
+
 // Must "await storageReady;" before reading maps.
 // You can force initStorage() from the console for debugging purposes.
 const initStorage = async () => {
-  await spriteImgReady;
   await optionsReady;
-
-  // Migrate previous-version data from local to session storage.
-  const oldItems = await chrome.storage.local.get();
-  for (const [k, v] of Object.entries(oldItems)) {
-    if (k.startsWith("tab/") || k.startsWith("req/")) {
-      console.log(`migrating ${k} to storage.session`);
-      await chrome.storage.session.set({[k]: v});
-      await chrome.storage.local.remove(k);
-    }
-  }
 
   // These are be no-ops unless initStorage() is called manually.
   clearMap(tabMap);
   clearMap(requestMap);
+  if (ipCache) clearMap(ipCache);
 
   const items = await chrome.storage.session.get();
   const unparseable = [];
@@ -665,13 +772,9 @@ class Popups {
     delete this.ports[tabId];
   };
 
-  pushAll(tabId, tuples, pattern, spillCount) {
-    this.ports[tabId]?.postMessage({
-      cmd: "pushAll",
-      tuples: tuples,
-      pattern: pattern,
-      spillCount: spillCount,
-    });
+  pushAll(tabId, tuples, pattern, color, spillCount, sawHttpGt1) {
+    const cmd = "pushAll";
+    this.ports[tabId]?.postMessage({cmd, tuples, pattern, color, spillCount, sawHttpGt1});
   };
 
   pushOne(tabId, tuple) {
@@ -684,10 +787,11 @@ class Popups {
     });
   };
 
-  pushPattern(tabId, pattern) {
+  pushPattern(tabId, pattern, color) {
     this.ports[tabId]?.postMessage({
       cmd: "pushPattern",
       pattern: pattern,
+      color: color,
     });
   };
 
@@ -707,21 +811,21 @@ class Popups {
 
 const popups = new Popups();
 
-chrome.runtime.onConnect.addListener(async (port) => {
+chrome.runtime.onConnect.addListener(wrap(async (port) => {
   await storageReady;
   popups.attachPort(port);
   port.onDisconnect.addListener(() => {
     popups.detachPort(port);
   });
-});
+}));
 
 // Refresh icons after chrome.runtime.reload()
-chrome.runtime.onInstalled.addListener(async () => {
+chrome.runtime.onInstalled.addListener(wrap(async () => {
   await storageReady;
   for (const tabInfo of Object.values(tabMap)) {
     tabInfo.refreshPageAction();
   }
-});
+}));
 
 // -- TabTracker --
 
@@ -741,19 +845,19 @@ class TabTracker {
   tabSet = newMap();  // Set of all known tabIds
 
   constructor() {
-    chrome.tabs.onCreated.addListener(async (tab) => {
+    chrome.tabs.onCreated.addListener(wrap(async (tab) => {
       await storageReady;
       this.#addTab(tab.id, "onCreated");
-    });
-    chrome.tabs.onRemoved.addListener(async (tabId) => {
+    }));
+    chrome.tabs.onRemoved.addListener(wrap(async (tabId) => {
       await storageReady;
       this.#removeTab(tabId, "onRemoved");
-    });
-    chrome.tabs.onReplaced.addListener(async (addId, removeId) => {
+    }));
+    chrome.tabs.onReplaced.addListener(wrap(async (addId, removeId) => {
       await storageReady;
       this.#removeTab(removeId, "onReplaced");
       this.#addTab(addId, "onReplaced");
-    });
+    }));
     this.#pollAllTabs();
   }
 
@@ -809,7 +913,7 @@ const tabTracker = new TabTracker();
 //
 // Conveniently, this also ensures that the previous page data is cleared
 // when navigating to a file://, chrome://, or Chrome Web Store URL.
-chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
+chrome.webNavigation.onBeforeNavigate.addListener(wrap(async (details) => {
   if (!(details.frameId == 0 && details.tabId > 0)) {
     return;
   }
@@ -824,9 +928,9 @@ chrome.webNavigation.onBeforeNavigate.addListener(async (details) => {
   tabMap.remove(details.tabId);
   tabInfo = tabMap.lookupOrNew(details.tabId);
   tabInfo.setInitialDomain(-1, parsed.domain, parsed.origin);
-});
+}));
 
-chrome.webNavigation.onCommitted.addListener(async (details) => {
+chrome.webNavigation.onCommitted.addListener(wrap(async (details) => {
   debugLog("wN.oC", details?.tabId, details?.url, details);
   await storageReady;
   if (details.frameId != 0) {
@@ -835,39 +939,48 @@ chrome.webNavigation.onCommitted.addListener(async (details) => {
   const parsed = parseUrl(details.url);
   const tabInfo = tabMap.lookupOrNew(details.tabId);
   tabInfo.setCommitted(parsed.domain, parsed.origin);
-});
+}));
 
 // -- tabs --
 
 // Whenever anything tab-related happens, try to refresh the pageAction.  This
 // is hacky and inefficient, but the back-stabbing browser leaves me no choice.
 // This seems to fix http://crbug.com/124970 and some problems on Google+.
-chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(wrap(async (tabId, changeInfo, tab) => {
   debugLog("tabs.oU", tabId);
   await storageReady;
   const tabInfo = tabMap[tabId];
   if (tabInfo) {
-    tabInfo.color = tab.incognito ?
-        "incognitoColorScheme" : "regularColorScheme";
+    tabInfo.color = tab.incognito ? INCOGNITO_COLOR : REGULAR_COLOR;
     tabInfo.refreshPageAction();
   }
-});
+}));
 
 // -- webRequest --
 
-chrome.webRequest.onBeforeRequest.addListener(async (details) => {
-  //debugLog("wR.oBR", details?.tabId, details?.url, details);
+// Experimentally, a main_frame request with a documentId refers to a prefetch
+// (possibly using https://developer.chrome.com/blog/private-prefetch-proxy)
+// rather than a top-level navigation to a new URL.
+function isProperMainFrame(details) {
+  return (details.type == "main_frame" || details.type == "outermost_frame") &&
+      !details.documentId;
+}
+
+chrome.webRequest.onBeforeRequest.addListener(wrap(async (details) => {
+  debugLog("wR.oBR", details?.tabId, details?.url, details);
   await storageReady;
   const tabId = details.tabId;
   const tabInfos = [];
+  let prefetch = false;
   if (tabId > 0) {
-    if (details.type == "main_frame" || details.type == "outermost_frame") {
+    if (isProperMainFrame(details)) {
       const parsed = parseUrl(details.url);
       tabMap.remove(tabId);
       const tabInfo = tabMap.lookupOrNew(tabId);
       tabInfo.setInitialDomain(details.requestId, parsed.domain, parsed.origin);
       tabInfos.push(tabInfo);
     } else {
+      prefetch = (details.type == "main_frame" || details.type == "outermost_frame");
       const tabInfo = tabMap[tabId];
       if (tabInfo) {
         tabInfos.push(tabInfo);
@@ -897,18 +1010,18 @@ chrome.webRequest.onBeforeRequest.addListener(async (details) => {
     requestInfo.tabIdToBorn[tabInfo.id()] = tabInfo.born;
   }
   requestInfo.domain = null;
+  requestInfo.prefetch = prefetch;
   requestInfo.save();
-}, FILTER_ALL_URLS);
+}), FILTER_ALL_URLS);
 
 // In the event of a redirect, the mainOrigin may change
 // (from http: to https:) between the onBeforeRequest and onCommitted events,
 // triggering an "access denied" error.  Patch this from onBeforeRedirect.
 //
 // As of 2022, this can be tested by visiting http://maps.google.com/
-chrome.webRequest.onBeforeRedirect.addListener(async (details) => {
+chrome.webRequest.onBeforeRedirect.addListener(wrap(async (details) => {
   await storageReady;
-  if (!(details.type == "main_frame" ||
-        details.type == "outermost_frame")) {
+  if (!isProperMainFrame(details)) {
     return;
   }
   const requestInfo = requestMap[details.requestId];
@@ -928,9 +1041,9 @@ chrome.webRequest.onBeforeRedirect.addListener(async (details) => {
     tabInfo.setInitialDomain(requestInfo.id(), parsed.domain, parsed.origin);
   }
 
-}, FILTER_ALL_URLS);
+}), FILTER_ALL_URLS);
 
-chrome.webRequest.onResponseStarted.addListener(async (details) => {
+chrome.webRequest.onResponseStarted.addListener(wrap(async (details) => {
   //debugLog("wR.oRS", details?.tabId, details?.url, details);
   await storageReady;
   const requestInfo = requestMap[details.requestId];
@@ -955,6 +1068,11 @@ chrome.webRequest.onResponseStarted.addListener(async (details) => {
 
   let addr = details.ip;
   let fromCache = details.fromCache;
+
+  if (!fromCache) {
+    updateNAT64(parsed.domain, addr);
+  }
+
   if (ipCache) {
     // This runs on Firefox only.
     if (addr) {
@@ -974,27 +1092,32 @@ chrome.webRequest.onResponseStarted.addListener(async (details) => {
       }
     }
   }
-  addr = addr || "(no address)";
+  addr = reformatForNAT64(addr) || "(no address)";
 
-  let flags = parsed.ssl ? FLAG_SSL : FLAG_NOSSL;
-  if (parsed.ws) {
-    flags |= FLAG_WEBSOCKET;
+  // Domain flags
+  const dflags =
+      httpFlags(parsed.tls, details.statusLine) |
+      (parsed.ws ? DFLAG_WEBSOCKET : 0);
+
+  if (dflags & (DFLAG_H2 | DFLAG_H3)) {
+    sawHttpGt1();
   }
-  if (!fromCache) {
-    flags |= FLAG_UNCACHED;
-  }
-  if (details.tabId > 0) {
-    flags |= FLAG_NOTWORKER;
-  }
+
+  // Address flags
+  const aflags =
+      (requestInfo.prefetch ? AFLAG_PREFETCH : 0) |
+      (details.tabId <= 0 ? AFLAG_WORKER : 0) |
+      (fromCache ? AFLAG_CACHE : 0);
+
   if (requestInfo.domain) throw `Duplicate onResponseStarted: ${parsed.domain}`;
   requestInfo.domain = parsed.domain;
   requestInfo.save();
   for (const tabInfo of tabInfos) {
-    tabInfo.addDomain(parsed.domain, addr, flags);
+    tabInfo.addDomain(parsed.domain, dflags, addr, aflags);
   }
-}, FILTER_ALL_URLS);
+}), FILTER_ALL_URLS);
 
-const forgetRequest = async (details) => {
+const forgetRequest = wrap(async (details) => {
   await storageReady;
   const requestInfo = requestMap.remove(details.requestId);
   if (!requestInfo?.domain) {
@@ -1006,24 +1129,66 @@ const forgetRequest = async (details) => {
       tabInfo.domains[requestInfo.domain]?.countDown();
     }
   }
-};
+});
 chrome.webRequest.onCompleted.addListener(forgetRequest, FILTER_ALL_URLS);
 chrome.webRequest.onErrorOccurred.addListener(forgetRequest, FILTER_ALL_URLS);
 
 // -- contextMenus --
 
-// Context menus have been removed in favor of the buttons.
-// Perhaps a list of URLs or something could be added in the options
+// When the user right-clicks a domain or IP address in the popup window,
+// add a menu item that opens the requested lookup provider.
+const MENU_ID = "ipvfoo-lookup";
 
+chrome.contextMenus?.onClicked.addListener((info, tab) => {
+  if (info.menuItemId != MENU_ID) return;
+  const text = info.selectionText;
+  const url = selectionToLookupUrl(text)?.href;
+  if (url) {
+    chrome.tabs.create({url});
+  } else {
+    // Malformed selection; shake the popup content.
+    const tabId = /#(\d+)$/.exec(info.pageUrl);
+    if (tabId) {
+      popups.shake(Number(tabId[1]));
+    }
+  }
+});
 
 watchOptions(async (optionsChanged) => {
   await storageReady;
-  for (const option of optionsChanged) {
-    if (!option.endsWith("ColorScheme")) continue;
-    for (const tabInfo of Object.values(tabMap)) {
-      if (tabInfo.color == option) {
-        tabInfo.refreshPageAction();
+  optionsChanged = new Set(optionsChanged);
+  for (const tabInfo of Object.values(tabMap)) {
+    let refreshPageAction = optionsChanged.has(tabInfo.color);
+    if (optionsChanged.has(NAT64_KEY)) {
+      for (const [domain, di] of Object.entries(tabInfo.domains)) {
+        const newAddr = reformatForNAT64(di.addr);
+        if (di.addr != newAddr) {
+          di.addr = newAddr;
+          tabInfo.pushOne(domain);
+          refreshPageAction = true;
+        }
       }
     }
+    if (refreshPageAction) {
+      tabInfo.refreshPageAction();
+    }
+  }
+
+  if (optionsChanged.has(LOOKUP_PROVIDER) ||
+      optionsChanged.has(CUSTOM_PROVIDER_DOMAIN) ||
+      optionsChanged.has(CUSTOM_PROVIDER_IP)) {
+    chrome.contextMenus?.removeAll(() => {
+      // Show something sensible, even when domain/ip use different providers.
+      const title = lookupMenuTitle("example.com", "0.0.0.0");
+      if (title) {
+        chrome.contextMenus.create({
+          title: title,
+          id: MENU_ID,
+          // Scope the menu to text selection in our popup windows.
+          contexts: ["selection"],
+          documentUrlPatterns: [chrome.runtime.getURL("popup.html")],
+        });
+      }
+    });
   }
 });
