@@ -1,9 +1,9 @@
 {
   "name": "IPvFooBarBaz",
   "manifest_version": 3,
-  "version": "2.36",
+  "version": "2.37",
   "description": "Display the server IP address, with a realtime summary of IPv4, IPv6, ASN, hostname, and HTTPS information across all page elements.",
-  "homepage_url": "https://github.com/ziad8727/ipvfoobarbaz",
+  "homepage_url": "https://github.com/Sohag-Dev12/ipvfoobarbaz",
   "icons": {
     "16": "icon16.png",
     "128": "icon128.png"
