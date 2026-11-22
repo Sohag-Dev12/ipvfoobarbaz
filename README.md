@@ -2,6 +2,11 @@
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://github.com/Sohag-Dev12/ipvfoobarbaz/blob/master/LICENSE)
 [![Version](https://img.shields.io/badge/version-2.37-green.svg)](https://github.com/Sohag-Dev12/ipvfoobarbaz/releases)
+[![Download](https://img.shields.io/badge/Download-ipvfoobarbaz--2.37.zip-blueviolet.svg)](https://github.com/Sohag-Dev12/ipvfoobarbaz/raw/master/dist/ipvfoobarbaz-2.37.zip)
+
+### 📦 Download Main Extension Package
+👉 **[Download ipvfoobarbaz-2.37.zip (Direct Download)](https://github.com/Sohag-Dev12/ipvfoobarbaz/raw/master/dist/ipvfoobarbaz-2.37.zip)**  
+*(Ready to upload directly to Chrome Web Store Developer Console or unzip and load unpacked in Chrome)*
 
 **IPvFooBarBaz** is a lightweight, privacy-friendly Chrome and Firefox browser extension that indicates whether the current webpage was fetched using IPv4 or IPv6. Clicking the toolbar icon reveals an interactive popup listing every server IP address that served page elements, complete with PTR hostname, Autonomous System Number (ASN), and HTTP protocol version.
 
