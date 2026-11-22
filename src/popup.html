@@ -36,7 +36,7 @@ limitations under the License.
   --bg-app-gradient: linear-gradient(160deg, #f8fafc 0%, #edf2f7 50%, #e2e8f0 100%);
   --bg-card: #ffffff;
   --bg-row-hover: #f1f5f9;
-  --bg-highlight: #fef3c7;
+  --bg-highlight: rgba(245, 158, 11, 0.08);
   --border-subtle: #e2e8f0;
   --border-card: #cbd5e1;
   --text-main: #0f172a;
@@ -44,7 +44,7 @@ limitations under the License.
   --text-dim: #94a3b8;
   --ip4-color: #dc2626;
   --ip4-bg: #fee2e2;
-  --ip6-color: #16a34a;
+  --ip6-color: #15803d;
   --ip6-bg: #dcfce7;
   --btn-bg: #f8fafc;
   --btn-fg: #334155;
@@ -53,6 +53,13 @@ limitations under the License.
   --toast-bg: rgba(15, 23, 42, 0.94);
   --toast-fg: #ffffff;
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --badge-asn-bg: #eff6ff;
+  --badge-asn-fg: #1d4ed8;
+  --badge-asn-border: #bfdbfe;
+  --badge-host-bg: #f8fafc;
+  --badge-host-fg: #334155;
+  --badge-host-border: #cbd5e1;
+  --bg-row-main: rgba(59, 130, 246, 0.05);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,7 +68,7 @@ limitations under the License.
     --bg-app-gradient: linear-gradient(145deg, #0f172a 0%, #090d16 50%, #060910 100%);
     --bg-card: #0f172a;
     --bg-row-hover: rgba(59, 130, 246, 0.12);
-    --bg-highlight: rgba(245, 158, 11, 0.18);
+    --bg-highlight: rgba(245, 158, 11, 0.14);
     --border-subtle: rgba(255, 255, 255, 0.08);
     --border-card: rgba(255, 255, 255, 0.14);
     --text-main: #f8fafc;
@@ -78,6 +85,13 @@ limitations under the License.
     --toast-bg: rgba(15, 23, 42, 0.96);
     --toast-fg: #f8fafc;
     --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.45);
+    --badge-asn-bg: rgba(59, 130, 246, 0.16);
+    --badge-asn-fg: #93c5fd;
+    --badge-asn-border: rgba(59, 130, 246, 0.35);
+    --badge-host-bg: #1e293b;
+    --badge-host-fg: #94a3b8;
+    --badge-host-border: rgba(255, 255, 255, 0.12);
+    --bg-row-main: rgba(59, 130, 246, 0.10);
   }
 }
 
@@ -86,7 +100,7 @@ limitations under the License.
   --bg-app-gradient: linear-gradient(145deg, #0f172a 0%, #090d16 50%, #060910 100%);
   --bg-card: #0f172a;
   --bg-row-hover: rgba(59, 130, 246, 0.12);
-  --bg-highlight: rgba(245, 158, 11, 0.18);
+  --bg-highlight: rgba(245, 158, 11, 0.14);
   --border-subtle: rgba(255, 255, 255, 0.08);
   --border-card: rgba(255, 255, 255, 0.14);
   --text-main: #f8fafc;
@@ -103,6 +117,13 @@ limitations under the License.
   --toast-bg: rgba(15, 23, 42, 0.96);
   --toast-fg: #f8fafc;
   --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --badge-asn-bg: rgba(59, 130, 246, 0.16);
+  --badge-asn-fg: #93c5fd;
+  --badge-asn-border: rgba(59, 130, 246, 0.35);
+  --badge-host-bg: #1e293b;
+  --badge-host-fg: #94a3b8;
+  --badge-host-border: rgba(255, 255, 255, 0.12);
+  --bg-row-main: rgba(59, 130, 246, 0.10);
 }
 
 [data-theme="light"] {
@@ -110,7 +131,7 @@ limitations under the License.
   --bg-app-gradient: linear-gradient(160deg, #f8fafc 0%, #edf2f7 50%, #e2e8f0 100%);
   --bg-card: #ffffff;
   --bg-row-hover: #f1f5f9;
-  --bg-highlight: #fef3c7;
+  --bg-highlight: rgba(245, 158, 11, 0.08);
   --border-subtle: #e2e8f0;
   --border-card: #cbd5e1;
   --text-main: #0f172a;
@@ -118,7 +139,7 @@ limitations under the License.
   --text-dim: #94a3b8;
   --ip4-color: #dc2626;
   --ip4-bg: #fee2e2;
-  --ip6-color: #16a34a;
+  --ip6-color: #15803d;
   --ip6-bg: #dcfce7;
   --btn-bg: #f8fafc;
   --btn-fg: #334155;
@@ -127,6 +148,13 @@ limitations under the License.
   --toast-bg: rgba(15, 23, 42, 0.94);
   --toast-fg: #ffffff;
   --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.05);
+  --badge-asn-bg: #eff6ff;
+  --badge-asn-fg: #1d4ed8;
+  --badge-asn-border: #bfdbfe;
+  --badge-host-bg: #f8fafc;
+  --badge-host-fg: #334155;
+  --badge-host-border: #cbd5e1;
+  --bg-row-main: rgba(59, 130, 246, 0.05);
 }
 
 * {
@@ -436,10 +464,21 @@ td {
   vertical-align: middle;
 }
 
+:root[data-theme="dark"] .httpImg,
+:root[data-theme="dark"] .snipImg {
+  filter: invert(1);
+}
+
 @media (prefers-color-scheme: dark) {
-  .httpImg, .snipImg {
+  :root:not([data-theme="light"]) .httpImg,
+  :root:not([data-theme="light"]) .snipImg {
     filter: invert(1);
   }
+}
+
+:root[data-theme="light"] .httpImg,
+:root[data-theme="light"] .snipImg {
+  filter: none !important;
 }
 
 .domainTd {
@@ -513,23 +552,17 @@ td {
 }
 
 .host-badge {
-  background-color: var(--btn-bg);
-  color: var(--text-muted);
-  border: 1px solid var(--border-subtle);
+  background-color: var(--badge-host-bg);
+  color: var(--badge-host-fg);
+  border: 1px solid var(--badge-host-border);
+  font-weight: 500;
 }
 
 .asn-badge {
-  background-color: rgba(59, 130, 246, 0.1);
-  color: #2563eb;
-  border: 1px solid rgba(59, 130, 246, 0.2);
-}
-
-@media (prefers-color-scheme: dark) {
-  .asn-badge {
-    background-color: rgba(59, 130, 246, 0.2);
-    color: #93c5fd;
-    border-color: rgba(59, 130, 246, 0.3);
-  }
+  background-color: var(--badge-asn-bg);
+  color: var(--badge-asn-fg);
+  border: 1px solid var(--badge-asn-border);
+  font-weight: 600;
 }
 
 /* Utility action buttons in row */
