@@ -20,9 +20,18 @@ limitations under the License.
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IPvFooBarBaz</title>
+<script type="text/javascript">
+  try {
+    const saved = localStorage.getItem("preferred_theme");
+    if (saved === "dark" || saved === "light") {
+      document.documentElement.setAttribute("data-theme", saved);
+    }
+  } catch (e) {}
+</script>
 <style type="text/css">
 :root {
-  --bg-app: #f8fafc;
+  --bg-app: #f1f5f9;
+  --bg-app-gradient: linear-gradient(160deg, #f8fafc 0%, #edf2f7 50%, #e2e8f0 100%);
   --bg-card: #ffffff;
   --bg-row-hover: #f1f5f9;
   --bg-highlight: #fef3c7;
@@ -35,36 +44,87 @@ limitations under the License.
   --ip4-bg: #fee2e2;
   --ip6-color: #16a34a;
   --ip6-bg: #dcfce7;
-  --btn-bg: #f1f5f9;
+  --btn-bg: #f8fafc;
   --btn-fg: #334155;
   --btn-border: #cbd5e1;
   --btn-hover-bg: #e2e8f0;
-  --toast-bg: rgba(15, 23, 42, 0.92);
+  --toast-bg: rgba(15, 23, 42, 0.94);
   --toast-fg: #ffffff;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg-app: #0f172a;
-    --bg-card: #1e293b;
-    --bg-row-hover: #334155;
-    --bg-highlight: #451a03;
-    --border-subtle: #334155;
-    --border-card: #475569;
+  :root:not([data-theme="light"]) {
+    --bg-app: #0b0f19;
+    --bg-app-gradient: linear-gradient(145deg, #0f172a 0%, #090d16 50%, #060910 100%);
+    --bg-card: #0f172a;
+    --bg-row-hover: rgba(59, 130, 246, 0.12);
+    --bg-highlight: rgba(245, 158, 11, 0.18);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-card: rgba(255, 255, 255, 0.14);
     --text-main: #f8fafc;
     --text-muted: #94a3b8;
     --text-dim: #64748b;
     --ip4-color: #f87171;
-    --ip4-bg: #450a0a;
+    --ip4-bg: rgba(239, 68, 68, 0.16);
     --ip6-color: #4ade80;
-    --ip6-bg: #052e16;
-    --btn-bg: #334155;
+    --ip6-bg: rgba(34, 197, 94, 0.16);
+    --btn-bg: #1e293b;
     --btn-fg: #f1f5f9;
-    --btn-border: #475569;
-    --btn-hover-bg: #475569;
-    --toast-bg: rgba(248, 250, 252, 0.95);
-    --toast-fg: #0f172a;
+    --btn-border: rgba(255, 255, 255, 0.12);
+    --btn-hover-bg: #334155;
+    --toast-bg: rgba(15, 23, 42, 0.96);
+    --toast-fg: #f8fafc;
+    --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.45);
   }
+}
+
+[data-theme="dark"] {
+  --bg-app: #0b0f19;
+  --bg-app-gradient: linear-gradient(145deg, #0f172a 0%, #090d16 50%, #060910 100%);
+  --bg-card: #0f172a;
+  --bg-row-hover: rgba(59, 130, 246, 0.12);
+  --bg-highlight: rgba(245, 158, 11, 0.18);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-card: rgba(255, 255, 255, 0.14);
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --ip4-color: #f87171;
+  --ip4-bg: rgba(239, 68, 68, 0.16);
+  --ip6-color: #4ade80;
+  --ip6-bg: rgba(34, 197, 94, 0.16);
+  --btn-bg: #1e293b;
+  --btn-fg: #f1f5f9;
+  --btn-border: rgba(255, 255, 255, 0.12);
+  --btn-hover-bg: #334155;
+  --toast-bg: rgba(15, 23, 42, 0.96);
+  --toast-fg: #f8fafc;
+  --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] {
+  --bg-app: #f1f5f9;
+  --bg-app-gradient: linear-gradient(160deg, #f8fafc 0%, #edf2f7 50%, #e2e8f0 100%);
+  --bg-card: #ffffff;
+  --bg-row-hover: #f1f5f9;
+  --bg-highlight: #fef3c7;
+  --border-subtle: #e2e8f0;
+  --border-card: #cbd5e1;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --ip4-color: #dc2626;
+  --ip4-bg: #fee2e2;
+  --ip6-color: #16a34a;
+  --ip6-bg: #dcfce7;
+  --btn-bg: #f8fafc;
+  --btn-fg: #334155;
+  --btn-border: #cbd5e1;
+  --btn-hover-bg: #e2e8f0;
+  --toast-bg: rgba(15, 23, 42, 0.94);
+  --toast-fg: #ffffff;
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 * {
@@ -77,9 +137,12 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 12px;
   background-color: var(--bg-app);
+  background-image: var(--bg-app-gradient);
+  background-attachment: fixed;
   color: var(--text-main);
   min-width: 480px;
   max-width: 680px;
+  min-height: 100vh;
   overflow-x: hidden;
   user-select: none;
 }
@@ -160,6 +223,33 @@ body {
   background-color: var(--ip6-bg);
   color: var(--ip6-color);
   border-color: transparent;
+}
+
+.theme-btn {
+  background-color: var(--btn-bg);
+  color: var(--text-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1.2;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.theme-btn:hover {
+  background-color: var(--btn-hover-bg);
+  color: var(--text-main);
+  border-color: var(--border-card);
+}
+
+.theme-btn:active {
+  transform: scale(0.96);
 }
 
 /* Search and Filter Bar */
@@ -738,6 +828,7 @@ td {
       <span class="stat-pill stat-total" id="stat_total" title="Total unique domains">0 domains</span>
       <span class="stat-pill stat-v4" id="stat_v4" title="IPv4 domains">0 v4</span>
       <span class="stat-pill stat-v6" id="stat_v6" title="IPv6 domains">0 v6</span>
+      <button type="button" id="theme_toggle_btn" class="theme-btn" title="Toggle Theme (Auto / Dark / Light)">⚡ Auto</button>
     </div>
   </header>
 

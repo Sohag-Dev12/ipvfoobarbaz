@@ -20,35 +20,83 @@ limitations under the License.
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>IPvFooBarBaz Options</title>
+  <script type="text/javascript">
+    try {
+      const saved = localStorage.getItem("preferred_theme");
+      if (saved === "dark" || saved === "light") {
+        document.documentElement.setAttribute("data-theme", saved);
+      }
+    } catch (e) {}
+  </script>
   <style type="text/css">
   :root {
-    --bg-page: #f8fafc;
+    --bg-page: #f1f5f9;
+    --bg-page-gradient: linear-gradient(160deg, #f8fafc 0%, #edf2f7 50%, #e2e8f0 100%);
     --bg-card: #ffffff;
-    --border-card: #e2e8f0;
+    --border-card: #cbd5e1;
+    --border-subtle: #e2e8f0;
     --text-primary: #0f172a;
     --text-secondary: #475569;
     --text-muted: #64748b;
-    --primary: #3b82f6;
-    --primary-hover: #2563eb;
-    --input-bg: #ffffff;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --input-bg: #f8fafc;
     --input-border: #cbd5e1;
     --danger: #dc2626;
+    --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
   }
 
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg-page: #0f172a;
-      --bg-card: #1e293b;
-      --border-card: #334155;
+    :root:not([data-theme="light"]) {
+      --bg-page: #0b0f19;
+      --bg-page-gradient: linear-gradient(145deg, #0f172a 0%, #090d16 50%, #060910 100%);
+      --bg-card: #0f172a;
+      --border-card: rgba(255, 255, 255, 0.12);
+      --border-subtle: rgba(255, 255, 255, 0.08);
       --text-primary: #f8fafc;
       --text-secondary: #cbd5e1;
       --text-muted: #94a3b8;
       --primary: #3b82f6;
       --primary-hover: #60a5fa;
-      --input-bg: #0f172a;
-      --input-border: #475569;
+      --input-bg: #1e293b;
+      --input-border: rgba(255, 255, 255, 0.15);
       --danger: #f87171;
+      --card-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
     }
+  }
+
+  [data-theme="dark"] {
+    --bg-page: #0b0f19;
+    --bg-page-gradient: linear-gradient(145deg, #0f172a 0%, #090d16 50%, #060910 100%);
+    --bg-card: #0f172a;
+    --border-card: rgba(255, 255, 255, 0.12);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --text-primary: #f8fafc;
+    --text-secondary: #cbd5e1;
+    --text-muted: #94a3b8;
+    --primary: #3b82f6;
+    --primary-hover: #60a5fa;
+    --input-bg: #1e293b;
+    --input-border: rgba(255, 255, 255, 0.15);
+    --danger: #f87171;
+    --card-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  }
+
+  [data-theme="light"] {
+    --bg-page: #f1f5f9;
+    --bg-page-gradient: linear-gradient(160deg, #f8fafc 0%, #edf2f7 50%, #e2e8f0 100%);
+    --bg-card: #ffffff;
+    --border-card: #cbd5e1;
+    --border-subtle: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --primary: #2563eb;
+    --primary-hover: #1d4ed8;
+    --input-bg: #f8fafc;
+    --input-border: #cbd5e1;
+    --danger: #dc2626;
+    --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
   }
 
   * { box-sizing: border-box; }
@@ -58,9 +106,12 @@ limitations under the License.
     font-size: 13px;
     line-height: 1.5;
     background-color: var(--bg-page);
+    background-image: var(--bg-page-gradient);
+    background-attachment: fixed;
     color: var(--text-primary);
     margin: 0;
     padding: 30px 16px;
+    min-height: 100vh;
   }
 
   .settings-container {
@@ -105,6 +156,38 @@ limitations under the License.
     background-color: var(--input-bg);
     color: var(--text-muted);
     border: 1px solid var(--border-card);
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .theme-btn {
+    background-color: var(--input-bg);
+    color: var(--text-muted);
+    border: 1px solid var(--border-card);
+    border-radius: 12px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+
+  .theme-btn:hover {
+    background-color: var(--bg-card);
+    color: var(--text-primary);
+    border-color: var(--primary);
+  }
+
+  .theme-btn:active {
+    transform: scale(0.96);
   }
 
   .github-link {
@@ -153,7 +236,7 @@ limitations under the License.
     border: 1px solid var(--border-card);
     border-radius: 8px;
     padding: 18px 20px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--card-shadow);
   }
 
   .card-title {
@@ -329,7 +412,10 @@ limitations under the License.
         <h1 class="page-title">IPvFooBarBaz Settings</h1>
         <span class="version-tag">v2.37</span>
       </div>
-      <a href="https://github.com/Sohag-Dev12/ipvfoobarbaz" target="_blank" class="github-link">GitHub ↗</a>
+      <div class="header-right">
+        <button type="button" id="theme_toggle_btn" class="theme-btn" title="Toggle Theme (Auto / Dark / Light)">⚡ Auto</button>
+        <a href="https://github.com/Sohag-Dev12/ipvfoobarbaz" target="_blank" class="github-link">GitHub ↗</a>
+      </div>
     </div>
 
     <!-- Lookup Provider Card -->

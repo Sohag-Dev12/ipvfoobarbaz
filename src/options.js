@@ -145,6 +145,48 @@ window.onload = async () => {
     toastTimer = setTimeout(() => t.classList.remove("show"), 1500);
   }
 
+  // Theme Toggle (Auto -> Dark -> Light -> Auto)
+  const themeBtn = document.getElementById("theme_toggle_btn");
+  if (themeBtn) {
+    function updateOptionsThemeUI(theme) {
+      if (theme === "dark") {
+        document.documentElement.setAttribute("data-theme", "dark");
+        themeBtn.textContent = "🌙 Dark";
+        themeBtn.title = "Theme: Dark. Click for Light.";
+      } else if (theme === "light") {
+        document.documentElement.setAttribute("data-theme", "light");
+        themeBtn.textContent = "☀️ Light";
+        themeBtn.title = "Theme: Light. Click for Auto.";
+      } else {
+        document.documentElement.removeAttribute("data-theme");
+        themeBtn.textContent = "⚡ Auto";
+        themeBtn.title = "Theme: Auto (follows system). Click for Dark.";
+      }
+    }
+
+    const currentTheme = localStorage.getItem("preferred_theme") || "auto";
+    updateOptionsThemeUI(currentTheme);
+
+    themeBtn.addEventListener("click", () => {
+      const cur = localStorage.getItem("preferred_theme") || "auto";
+      let next = "dark";
+      if (cur === "dark") next = "light";
+      else if (cur === "light") next = "auto";
+      else next = "dark";
+
+      try {
+        if (next === "auto") {
+          localStorage.removeItem("preferred_theme");
+        } else {
+          localStorage.setItem("preferred_theme", next);
+        }
+      } catch (e) {}
+
+      updateOptionsThemeUI(next);
+      showOptToast(`Theme set to ${next.toUpperCase()}`);
+    });
+  }
+
   document.getElementById("revert_btn").onclick = function() {
     revertNAT64();
     chrome.runtime.sendMessage({setStorageSyncDebounce: DEFAULT_SYNC_OPTIONS});

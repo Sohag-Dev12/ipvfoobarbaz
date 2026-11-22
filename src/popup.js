@@ -274,12 +274,57 @@ function copyTableAsJSON() {
   copyToClipboard(JSON.stringify(data, null, 2), `Copied ${data.length} items (JSON)!`);
 }
 
+// Theme Toggle (Auto -> Dark -> Light -> Auto)
+function initThemeToggle() {
+  const btn = document.getElementById("theme_toggle_btn");
+  if (!btn) return;
+
+  function updateThemeUI(theme) {
+    if (theme === "dark") {
+      document.documentElement.setAttribute("data-theme", "dark");
+      btn.textContent = "🌙 Dark";
+      btn.title = "Theme: Dark. Click for Light.";
+    } else if (theme === "light") {
+      document.documentElement.setAttribute("data-theme", "light");
+      btn.textContent = "☀️ Light";
+      btn.title = "Theme: Light. Click for Auto.";
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+      btn.textContent = "⚡ Auto";
+      btn.title = "Theme: Auto (follows system). Click for Dark.";
+    }
+  }
+
+  const currentTheme = localStorage.getItem("preferred_theme") || "auto";
+  updateThemeUI(currentTheme);
+
+  btn.addEventListener("click", () => {
+    const cur = localStorage.getItem("preferred_theme") || "auto";
+    let next = "dark";
+    if (cur === "dark") next = "light";
+    else if (cur === "light") next = "auto";
+    else next = "dark";
+
+    try {
+      if (next === "auto") {
+        localStorage.removeItem("preferred_theme");
+      } else {
+        localStorage.setItem("preferred_theme", next);
+      }
+    } catch (e) {}
+
+    updateThemeUI(next);
+    showToast(`Theme: ${next.toUpperCase()}`);
+  });
+}
+
 const tabId = window.location.hash.substr(1);
 
 let table = null;
 let gSawHttpGt1 = false;
 
 window.onload = async function() {
+  initThemeToggle();
   table = document.getElementById("addr_table");
   table.onmousedown = handleMouseDown;
 
