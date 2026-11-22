@@ -14,10 +14,13 @@
   "action": {
     "default_icon": {
       "16": "icon16_transparent.png"
-    }
+    },
+    "default_title": "IPvFooBarBaz",
+    "default_popup": "popup.html"
   },
   "options_ui": {
-    "page": "options.html"
+    "page": "options.html",
+    "open_in_tab": true
   },
   "permissions": [
     "contextMenus",

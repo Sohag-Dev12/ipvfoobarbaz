@@ -59,7 +59,7 @@ This is a fork of the original [IPvFoo](https://github.com/pmarks-net/ipvfoo) an
 ### Build from Source
 To create a distribution `.zip` package:
 ```bash
-python -c "import zipfile, os; z = zipfile.ZipFile('build/ipvfoobarbaz-2.37.zip', 'w', zipfile.ZIP_DEFLATED); [z.write(os.path.join(r, f), os.path.relpath(os.path.join(r, f), 'src')) for r, d, fs in os.walk('src') if not r.startswith('src' + os.sep + 'manifest') for f in fs]"
+python -c "import zipfile, os; z = zipfile.ZipFile('dist/ipvfoobarbaz-2.37.zip', 'w', zipfile.ZIP_DEFLATED); [z.write(os.path.join(r, f), os.path.relpath(os.path.join(r, f), 'src')) for r, d, fs in os.walk('src') for f in fs]"
 ```
 Or run `make` (on Linux / macOS).
 
