@@ -65,16 +65,6 @@ Or run `make` (on Linux / macOS).
 
 ---
 
-## Add to Chrome
-https://chromewebstore.google.com/detail/ipvfoobarbaz/jiaodmfhmjdhefmljkipedcbpkplpfcn
-
-## Add to Firefox
-https://addons.mozilla.org/firefox/addon/ipvfoobarbaz
-
-To use IPvFooBarBaz with Firefox's default search engine, uncheck **Settings > Search > Show search terms in the address bar on results pages**.
-
----
-
 ## License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](https://github.com/Sohag-Dev12/ipvfoobarbaz/blob/master/LICENSE) file for details.
