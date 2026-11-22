@@ -22,7 +22,9 @@ limitations under the License.
 <title>IPvFooBarBaz</title>
 <script type="text/javascript">
   try {
-    const saved = localStorage.getItem("preferred_theme");
+    const params = new URLSearchParams(window.location.search);
+    const themeParam = params.get("theme");
+    const saved = themeParam || localStorage.getItem("preferred_theme");
     if (saved === "dark" || saved === "light") {
       document.documentElement.setAttribute("data-theme", saved);
     }
@@ -810,6 +812,25 @@ td {
   animation-duration: 500ms;
 }
 </style>
+<script type="text/javascript">
+  if (!window.chrome) window.chrome = {};
+  if (!chrome.runtime) chrome.runtime = {};
+  if (!chrome.runtime.getManifest) {
+    chrome.runtime.getManifest = () => ({ background: { service_worker: "background.js" } });
+  }
+  if (!chrome.storage) {
+    chrome.storage = {
+      local: { get: () => Promise.resolve({}), set: () => Promise.resolve(), onChanged: { addListener: () => {} } },
+      sync: { get: () => Promise.resolve({}), set: () => Promise.resolve(), onChanged: { addListener: () => {} } }
+    };
+  }
+  if (!chrome.permissions) {
+    chrome.permissions = {
+      getAll: () => Promise.resolve({ origins: ["<all_urls>"] }),
+      request: () => Promise.resolve(true)
+    };
+  }
+</script>
 <script type="text/javascript" src="iputil.js"></script>
 <script type="text/javascript" src="common.js"></script>
 <script type="text/javascript" src="psl.min.js"></script>

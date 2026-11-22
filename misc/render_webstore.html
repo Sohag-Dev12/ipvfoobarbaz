@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+body {
+  width: 1280px;
+  height: 800px;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: #0d1117;
+  color: #c9d1d9;
+  position: relative;
+}
+
+/* Browser Frame */
+.browser-window {
+  width: 1280px;
+  height: 800px;
+  display: flex;
+  flex-direction: column;
+  background: #0d1117;
+}
+
+/* Browser Header */
+.browser-header {
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+}
+
+.browser-tabs {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px 0 12px;
+  gap: 8px;
+}
+
+.window-dots {
+  display: flex;
+  gap: 6px;
+  margin-right: 12px;
+}
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.dot-red { background: #ff5f56; }
+.dot-yellow { background: #ffbd2e; }
+.dot-green { background: #27c93f; }
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0d1117;
+  color: #f0f6fc;
+  padding: 7px 16px;
+  border-radius: 8px 8px 0 0;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #30363d;
+  border-bottom: none;
+  max-width: 240px;
+}
+
+.tab-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.tab-close {
+  margin-left: auto;
+  font-size: 11px;
+  color: #8b949e;
+}
+
+/* Address Bar & Toolbar */
+.browser-toolbar {
+  display: flex;
+  align-items: center;
+  padding: 6px 14px;
+  gap: 12px;
+  background: #161b22;
+}
+
+.nav-buttons {
+  display: flex;
+  gap: 8px;
+  color: #8b949e;
+  font-size: 14px;
+}
+
+.address-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  color: #f0f6fc;
+}
+
+.lock-icon {
+  color: #3fb950;
+  font-size: 12px;
+}
+
+.address-text {
+  color: #f0f6fc;
+  font-weight: 400;
+}
+.address-sub {
+  color: #8b949e;
+}
+
+/* Extensions Toolbar */
+.extension-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+
+.ext-icon-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: pointer;
+  padding: 3px 6px;
+  background: rgba(56, 139, 253, 0.15);
+  border: 1px solid #388bfd;
+  border-radius: 5px;
+}
+
+.badge-flag {
+  font-size: 11px;
+  font-weight: 700;
+  color: #58a6ff;
+  letter-spacing: 0.5px;
+}
+
+/* Webpage Area */
+.webpage-viewport {
+  flex: 1;
+  position: relative;
+  background: #0d1117;
+  overflow: hidden;
+}
+
+/* Simulated blurred background webpage */
+.mock-webpage {
+  padding: 40px 60px;
+  opacity: 0.28;
+  filter: blur(2px);
+}
+
+.mock-title {
+  font-size: 38px;
+  font-weight: 800;
+  color: #ffffff;
+  margin-bottom: 16px;
+}
+
+.mock-desc {
+  font-size: 18px;
+  color: #8b949e;
+  max-width: 650px;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.mock-cards {
+  display: flex;
+  gap: 20px;
+}
+
+.mock-card {
+  width: 280px;
+  height: 140px;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+}
+
+/* Popup overlay floating below extension icon */
+.popup-anchor {
+  position: absolute;
+  top: 6px;
+  right: 18px;
+  width: 550px;
+  height: 520px;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  background: #0b0f19;
+  z-index: 100;
+}
+
+.popup-iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+/* Feature Callout Badges on the left */
+.feature-callouts {
+  position: absolute;
+  left: 60px;
+  bottom: 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 50;
+}
+
+.callout-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(22, 27, 34, 0.85);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #f0f6fc;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.callout-icon {
+  font-size: 16px;
+}
+</style>
+</head>
+<body>
+<div class="browser-window">
+  <!-- Window Header -->
+  <div class="browser-header">
+    <div class="browser-tabs">
+      <div class="window-dots">
+        <div class="dot dot-red"></div>
+        <div class="dot dot-yellow"></div>
+        <div class="dot dot-green"></div>
+      </div>
+      <div class="tab">
+        <span>🐙</span>
+        <span>GitHub: Let's build from here</span>
+        <span class="tab-close">✕</span>
+      </div>
+    </div>
+    <div class="browser-toolbar">
+      <div class="nav-buttons">
+        <span>←</span>
+        <span>→</span>
+        <span>↻</span>
+      </div>
+      <div class="address-bar">
+        <span class="lock-icon">🔒</span>
+        <span class="address-text">https://github.com/</span><span class="address-sub">Sohag-Dev12/ipvfoobarbaz</span>
+      </div>
+      <div class="extension-toolbar">
+        <div class="ext-icon-badge" title="IPvFooBarBaz: 4/6">
+          <span class="badge-flag">4/6</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Webpage Area with popup overlay -->
+  <div class="webpage-viewport">
+    <div class="mock-webpage">
+      <div class="mock-title">Build and ship software on a single, collaborative platform</div>
+      <div class="mock-desc">Join the world's most widely adopted AI-powered developer platform where millions of developers build, test, and deploy applications.</div>
+      <div class="mock-cards">
+        <div class="mock-card"></div>
+        <div class="mock-card"></div>
+        <div class="mock-card"></div>
+      </div>
+    </div>
+
+    <!-- Feature Callout Badges -->
+    <div class="feature-callouts">
+      <div class="callout-badge">
+        <span class="callout-icon">⚡</span>
+        <span>Real-Time IPv4 / IPv6 Inspector with Protocol Badges</span>
+      </div>
+      <div class="callout-badge">
+        <span class="callout-icon">🔍</span>
+        <span>Instant Search &amp; Protocol Filter Pills</span>
+      </div>
+      <div class="callout-badge">
+        <span class="callout-icon">📋</span>
+        <span>One-Click Copy Suite &amp; TSV / JSON Export</span>
+      </div>
+      <div class="callout-badge">
+        <span class="callout-icon">🏷️</span>
+        <span>Reverse DNS PTR &amp; Team Cymru ASN Badges</span>
+      </div>
+      <div class="callout-badge">
+        <span class="callout-icon">🌙</span>
+        <span>Obsidian Dark &amp; Snow Light with Instant Theme Switcher</span>
+      </div>
+    </div>
+
+    <!-- Floating Extension Popup -->
+    <div class="popup-anchor">
+      <iframe class="popup-iframe" src="../src/popup.html"></iframe>
+    </div>
+  </div>
+</div>
+</body>
+</html>

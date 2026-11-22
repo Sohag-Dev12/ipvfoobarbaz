@@ -164,7 +164,7 @@ window.onload = async () => {
       }
     }
 
-    const currentTheme = localStorage.getItem("preferred_theme") || "auto";
+    const currentTheme = new URLSearchParams(window.location.search).get("theme") || localStorage.getItem("preferred_theme") || "auto";
     updateOptionsThemeUI(currentTheme);
 
     themeBtn.addEventListener("click", () => {

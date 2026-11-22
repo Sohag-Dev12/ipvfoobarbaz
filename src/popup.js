@@ -295,7 +295,7 @@ function initThemeToggle() {
     }
   }
 
-  const currentTheme = localStorage.getItem("preferred_theme") || "auto";
+  const currentTheme = new URLSearchParams(window.location.search).get("theme") || localStorage.getItem("preferred_theme") || "auto";
   updateThemeUI(currentTheme);
 
   btn.addEventListener("click", () => {
@@ -431,11 +431,38 @@ window.onload = async function() {
   } else if (tabId) {
     throw new Error(`Bad tabId: ${tabId}`);
   } else {
-    console.log("No tabId, using test table")
+    console.log("No tabId, using test table");
+    const ptr_gh = "4.121.82.140.in-addr.arpa";
+    window.dnsCache.hosts[ptr_gh] = "lb-140-82-121-4-fra.github.com";
+    const o_gh = "4.121.82.140.origin.asn.cymru.com";
+    window.dnsCache.asns[o_gh] = "AS36459 GITHUB, US";
+
+    const ptr_cdn = "153.108.199.185.in-addr.arpa";
+    window.dnsCache.hosts[ptr_cdn] = "cdn-185-199-108-153.github.com";
+    const o_cdn = "153.108.199.185.origin.asn.cymru.com";
+    window.dnsCache.asns[o_cdn] = "AS54113 FASTLY, US";
+
+    const ptr_goog = full_IPv6("2607:f8b0:4004:800::200e").replaceAll(":", "").split("").reverse().join(".") + ".ip6.arpa";
+    window.dnsCache.hosts[ptr_goog] = "iad66s02-in-x0e.1e100.net";
+    const o_goog = full_IPv6("2607:f8b0:4004:800::200e").replaceAll(":", "").split("").reverse().join(".") + ".origin6.asn.cymru.com";
+    window.dnsCache.asns[o_goog] = "AS15169 GOOGLE, US";
+
+    const ptr_cf = full_IPv6("2606:4700::6811:d159").replaceAll(":", "").split("").reverse().join(".") + ".ip6.arpa";
+    window.dnsCache.hosts[ptr_cf] = "cloudflare.com";
+    const o_cf = full_IPv6("2606:4700::6811:d159").replaceAll(":", "").split("").reverse().join(".") + ".origin6.asn.cymru.com";
+    window.dnsCache.asns[o_cf] = "AS13335 CLOUDFLARENET, US";
+
+    const ptr_cached = full_IPv6("2001:db8::f00").replaceAll(":", "").split("").reverse().join(".") + ".ip6.arpa";
+    window.dnsCache.hosts[ptr_cached] = false;
+    const o_cached = full_IPv6("2001:db8::f00").replaceAll(":", "").split("").reverse().join(".") + ".origin6.asn.cymru.com";
+    window.dnsCache.asns[o_cached] = false;
+
     const TEST_TUPLES = [
-      ["ipv6.example.com", "2001:db8::f00", "6", DFLAG_H1],
-      ["ipv4.example.com", "192.0.2.9", "4", DFLAG_NO_TLS],
-      ["cached.example.com", "2001:db8::f00", "6", DFLAG_H3 | AFLAG_CACHE],
+      ["github.com", "140.82.121.4", "4", DFLAG_H2 | DFLAG_CONNECTED],
+      ["assets-cdn.github.com", "185.199.108.153", "4", DFLAG_H2 | DFLAG_CONNECTED],
+      ["google.com", "2607:f8b0:4004:800::200e", "6", DFLAG_H3 | DFLAG_CONNECTED],
+      ["cdnjs.cloudflare.com", "2606:4700::6811:d159", "6", DFLAG_H3 | DFLAG_CONNECTED],
+      ["cached.example.com", "2001:db8::f00", "6", DFLAG_H3 | AFLAG_CACHE]
     ];
     pushAll(TEST_TUPLES, "646", REGULAR_COLOR, 0, true);
   }

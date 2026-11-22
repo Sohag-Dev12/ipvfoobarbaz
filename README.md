@@ -42,9 +42,18 @@ This is a fork of the original [IPvFoo](https://github.com/pmarks-net/ipvfoo) an
 
 ## Screenshots
 
-![Screenshot](/misc/screenshot_webstore_1_640x400.png?raw=true)
+![Web Store Overview](/misc/screenshot_webstore_1_1280x800.png?raw=true)
 
-![Screenshot](/misc/screenshot_options.png?raw=true)
+### Dark & Light Mode Popups
+<p align="center">
+  <img src="/misc/screenshot_popup_dark.png?raw=true" width="48%" alt="Dark Mode Popup" />
+  <img src="/misc/screenshot_popup_light.png?raw=true" width="48%" alt="Light Mode Popup" />
+</p>
+
+### Options & Settings
+<p align="center">
+  <img src="/misc/screenshot_options.png?raw=true" width="70%" alt="Options Page" />
+</p>
 
 ---
 
